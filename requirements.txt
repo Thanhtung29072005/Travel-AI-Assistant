@@ -1,0 +1,29 @@
+# Core framework
+fastapi==0.115.6
+uvicorn[standard]==0.32.1
+
+# LangGraph & LangChain
+langgraph==0.2.60
+langchain==0.3.14
+langchain-google-genai==2.0.7
+langchain-community==0.3.14
+
+# Google Gemini
+google-generativeai==0.8.3
+
+# Web Search
+tavily-python==0.5.0
+
+# Data validation
+# Lưu ý: pydantic-core>=2.35.0 mới có wheel cho Python 3.14
+pydantic>=2.11
+pydantic-settings>=2.7.0
+
+# HTTP client (không dùng aiohttp vì chưa hỗ trợ Python 3.14)
+httpx==0.28.1
+
+# Environment variables
+python-dotenv>=1.0.0
+
+# Utilities
+python-multipart==0.0.20
