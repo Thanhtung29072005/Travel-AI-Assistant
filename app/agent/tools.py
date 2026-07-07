@@ -5,60 +5,30 @@ Mỗi tool là một function được decorated với @tool từ LangChain.
 AI sẽ tự động quyết định khi nào cần dùng tool nào.
 """
 from langchain_core.tools import tool
-from tavily import TavilyClient
-from app.config import get_settings
+from app.services.search import get_search_service
 import json
-
-settings = get_settings()
-
-
-def _get_tavily_client() -> TavilyClient:
-    """Khởi tạo Tavily client (lazy initialization)"""
-    if not settings.tavily_api_key:
-        raise ValueError("TAVILY_API_KEY chưa được cấu hình trong file .env")
-    return TavilyClient(api_key=settings.tavily_api_key)
 
 
 @tool
 def search_travel_info(query: str) -> str:
     """
     Tìm kiếm thông tin du lịch trên internet.
-    
+
     Dùng khi cần tìm:
     - Thông tin về địa điểm du lịch
     - Giá vé máy bay, khách sạn
     - Hoạt động và điểm tham quan
-    - Thời tiết và mùa du lịch
-    
+    - Thời tiết và mùa du lịch tại các nơi
+
     Args:
         query: Câu hỏi tìm kiếm bằng tiếng Việt hoặc tiếng Anh
-        
+
     Returns:
         Kết quả tìm kiếm từ internet
     """
-    try:
-        client = _get_tavily_client()
-        results = client.search(
-            query=query,
-            search_depth="basic",
-            max_results=5,
-            include_answer=True,
-        )
-        
-        # Format kết quả
-        output = []
-        if results.get("answer"):
-            output.append(f"**Tóm tắt:** {results['answer']}\n")
-        
-        for i, result in enumerate(results.get("results", [])[:3], 1):
-            output.append(f"{i}. **{result.get('title', 'N/A')}**")
-            output.append(f"   {result.get('content', '')[:300]}...")
-            output.append(f"   Nguồn: {result.get('url', '')}\n")
-        
-        return "\n".join(output) if output else "Không tìm thấy thông tin phù hợp."
-        
-    except Exception as e:
-        return f"Lỗi tìm kiếm: {str(e)}"
+    service = get_search_service()
+    result = service.search(query=query, max_results=5)
+    return result.to_text()
 
 
 @tool
