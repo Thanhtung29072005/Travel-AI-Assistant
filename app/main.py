@@ -18,11 +18,11 @@ settings = get_settings()
 async def lifespan(app: FastAPI):
     """Khởi động và tắt ứng dụng"""
     # Startup
-    print(f"🚀 {settings.app_name} v{settings.app_version} đang khởi động...")
-    print(f"📡 Model AI: {settings.gemini_model}")
+    print(f"Starting {settings.app_name} v{settings.app_version}...")
+    print(f"AI Model: {settings.gemini_model}")
     yield
     # Shutdown
-    print("👋 Server đang tắt...")
+    print("Server shutting down...")
 
 
 # Khởi tạo FastAPI app

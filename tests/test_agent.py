@@ -8,6 +8,12 @@ import asyncio
 import sys
 import os
 
+# Cấu hình UTF-8 cho console output trên Windows
+if sys.platform.startswith("win"):
+    import io
+    sys.stdout = io.TextIOWrapper(sys.stdout.buffer, encoding='utf-8')
+    sys.stderr = io.TextIOWrapper(sys.stderr.buffer, encoding='utf-8')
+
 # Thêm root vào path để import được các module
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
