@@ -52,6 +52,7 @@ class SearchService:
     def _get_client(self):
         """Lazy initialization của Tavily client"""
         if self._client is None:
+            # pyrefly: ignore [missing-import]
             from tavily import TavilyClient
             self._client = TavilyClient(api_key=settings.tavily_api_key)
         return self._client

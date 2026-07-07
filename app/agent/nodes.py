@@ -49,7 +49,7 @@ def _get_llm():
         temperature=settings.temperature,
     )
     # Bind tools vào LLM để model biết có thể gọi tool nào
-    return llm.bind_tools(ALL_TOOLS)
+    return llm.bind_tools(ALL_TOOLS)  # type: ignore
 
 
 def agent_node(state: TravelAgentState) -> TravelAgentState:

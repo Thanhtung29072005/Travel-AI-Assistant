@@ -6,6 +6,7 @@ Graph là "bản đồ" mô tả cách agent hoạt động:
                      → (không cần)  → END
 """
 from langgraph.graph import StateGraph, START, END
+from langgraph.graph.state import CompiledStateGraph
 
 from app.agent.state import TravelAgentState
 from app.agent.nodes import (
@@ -16,7 +17,7 @@ from app.agent.nodes import (
 )
 
 
-def create_travel_agent() -> StateGraph:
+def create_travel_agent() -> CompiledStateGraph:
     """
     Tạo và compile LangGraph workflow cho Travel AI Agent.
     
@@ -57,7 +58,7 @@ def create_travel_agent() -> StateGraph:
 _agent_graph = None
 
 
-def get_agent() -> StateGraph:
+def get_agent() -> CompiledStateGraph:
     """
     Lấy agent graph instance (singleton pattern).
     

@@ -75,7 +75,16 @@ async def chat(request: ChatRequest):
         if not ai_messages:
             raise ValueError("Agent không trả về câu trả lời")
         
-        response_text = ai_messages[-1].content
+        raw_content = ai_messages[-1].content
+        # AIMessage.content can be `str` or `list[dict | str]` (multi-modal blocks).
+        # Flatten it to a plain string for the API response.
+        if isinstance(raw_content, str):
+            response_text = raw_content
+        else:
+            response_text = " ".join(
+                part if isinstance(part, str) else part.get("text", "")
+                for part in raw_content
+            )
         
         return ChatResponse(
             response=response_text,
