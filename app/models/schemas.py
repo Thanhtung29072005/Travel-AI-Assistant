@@ -51,8 +51,22 @@ class ChatResponse(BaseModel):
     )
 
 
+class ErrorResponse(BaseModel):
+    """Response body chuẩn hóa cho các lỗi API"""
+    error: str = Field(description="Loại lỗi ngắn gọn (machine-readable)")
+    message: str = Field(description="Mô tả lỗi chi tiết (human-readable)")
+    session_id: Optional[str] = Field(
+        default=None,
+        description="Session ID nếu có"
+    )
+
+
 class HealthResponse(BaseModel):
     """Response body từ endpoint /api/health"""
     status: str = Field(description="Trạng thái server: ok/error")
     version: str = Field(description="Phiên bản ứng dụng")
     model: str = Field(description="Model AI đang dùng")
+    search_enabled: bool = Field(
+        default=False,
+        description="Tavily web search có được bật không"
+    )
