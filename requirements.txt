@@ -27,3 +27,4 @@ python-dotenv>=1.0.0
 
 # Utilities
 python-multipart==0.0.20
+aiofiles
