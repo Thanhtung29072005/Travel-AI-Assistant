@@ -102,8 +102,11 @@ async def chat(request: ChatRequest):
         elif msg.role.value == "assistant":
             history.append(AIMessage(content=msg.content))
 
+    # Tạo initial state – bao gồm các field mới từ Phase 1
     initial_state: TravelAgentState = {
         "messages": history + [HumanMessage(content=request.message)],
+        "trip_plan": None,     # Phase 1: sẽ được planner_node điền vào (Phase 2)
+        "intent": None,        # Phase 1: sẽ được intent_node nhận diện (Phase 2)
         "tools_used": [],
         "travel_context": {},
         "error": None,
