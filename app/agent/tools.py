@@ -3,9 +3,15 @@ Agent Tools - Các công cụ mà AI có thể sử dụng
 
 Mỗi tool là một function được decorated với @tool từ LangChain.
 AI sẽ tự động quyết định khi nào cần dùng tool nào.
+
+Phase 3 additions:
+- get_weather_forecast    ← OpenWeatherMap live data
+- evaluate_trip_feasibility ← Cost estimate + risk analysis
 """
 from langchain_core.tools import tool
 from app.services.search import get_search_service
+from app.services.weather import get_weather_service
+from app.services.calculator import get_decision_engine
 import json
 
 
@@ -196,10 +202,78 @@ def get_destination_info(destination: str) -> str:
         return f"Không có thông tin offline cho '{destination}'. Hãy dùng tool search_travel_info để tìm kiếm trực tuyến."
 
 
+@tool
+def get_weather_forecast(city: str, days: int = 5) -> str:
+    """
+    Lấy thông tin thời tiết và dự báo cho điểm đến.
+
+    Dùng khi cần:
+    - Kiểm tra thời tiết tại điểm du lịch
+    - Tư vấn có nên đi trong khoảng thời gian đó không
+    - Phát hiện cảnh báo thời tiết xấu (mưa lớn, bão, nắng nóng)
+
+    Args:
+        city: Tên thành phố (tiếng Việt hoặc English)
+        days: Số ngày dự báo (tối đa 5 với free tier)
+
+    Returns:
+        Thông tin thời tiết và cảnh báo rủi ro
+    """
+    service = get_weather_service()
+    weather = service.get_weather(city=city, days=min(days, 5))
+    return weather.to_text()
+
+
+@tool
+def evaluate_trip_feasibility(
+    destination: str,
+    days: int,
+    travelers: int,
+    comfort_level: str = "medium",
+    budget_vnd: float = 0,
+    origin: str = "",
+    departure_month: int = 0,
+) -> str:
+    """
+    Ước tính chi phí thực tế và phân tích rủi ro cho chuyến đi.
+
+    Dùng khi cần:
+    - Tính ngân sách cần thiết cho chuyến đi
+    - Kiểm tra ngân sách người dùng có đủ không
+    - Phát hiện các rủi ro: mùa cao điểm, lịch trình quá dầy, ngân sách thiếu
+    - Tư vấn có nên đi không và điều chỉnh gì
+
+    Args:
+        destination:    Điểm đến chính
+        days:           Số ngày chuyến đi
+        travelers:      Số người đi
+        comfort_level:  Mức độ dịch vụ: "budget"|"medium"|"comfort"|"luxury"
+        budget_vnd:     Tổng ngân sách (VND), 0 = không rõ
+        origin:         Điểm xuất phát (VD: "Hà Nội")
+        departure_month: Tháng đi (1-12), 0 = không rõ
+
+    Returns:
+        Báo cáo chi phí + rủi ro chi tiết
+    """
+    engine = get_decision_engine()
+    report = engine.evaluate(
+        destination=destination,
+        days=days,
+        travelers=travelers,
+        comfort_level=comfort_level,
+        budget_provided=budget_vnd,
+        origin=origin or None,
+        departure_month=departure_month or None,
+    )
+    return report.to_text()
+
+
 # Danh sách tất cả tools để đăng ký với LLM
 ALL_TOOLS = [
     search_travel_info,
     create_travel_itinerary,
     calculate_travel_budget,
     get_destination_info,
+    get_weather_forecast,           # Phase 3: live weather
+    evaluate_trip_feasibility,      # Phase 3: cost + risk
 ]

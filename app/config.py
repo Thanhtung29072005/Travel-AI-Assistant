@@ -20,7 +20,10 @@ class Settings(BaseSettings):
     
     # Tavily Search
     tavily_api_key: str = ""
-    
+
+    # OpenWeatherMap (https://openweathermap.org/api — free tier đủ dùng)
+    openweathermap_api_key: str = ""
+
     # Server
     host: str = "0.0.0.0"
     port: int = 8000
