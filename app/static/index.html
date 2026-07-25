@@ -149,6 +149,94 @@
       </div>
 
     </main>
+
+    <!-- Workspace Panel (Phase 4 HITL UI) -->
+    <aside id="workspacePanel" class="workspace-panel" style="display: none;">
+      <div class="workspace-header">
+        <h2>Kế hoạch của bạn</h2>
+        <span class="plan-status-badge draft" id="planStatusBadge">Draft</span>
+      </div>
+      
+      <div class="workspace-body">
+        <!-- Form chỉnh sửa (HITL) -->
+        <div class="workspace-section">
+          <h3 class="section-title">Thông tin chuyến đi</h3>
+          <form id="tripForm" class="trip-form" onsubmit="event.preventDefault();">
+            <div class="form-row">
+              <div class="form-group">
+                <label for="tripOrigin">Điểm khởi hành</label>
+                <input type="text" id="tripOrigin" placeholder="Ví dụ: Hà Nội" />
+              </div>
+              <div class="form-group">
+                <label for="tripDestination">Điểm đến</label>
+                <input type="text" id="tripDestination" placeholder="Ví dụ: Đà Nẵng" required />
+              </div>
+            </div>
+            
+            <div class="form-row">
+              <div class="form-group">
+                <label for="tripDeparture">Ngày đi (YYYY-MM-DD)</label>
+                <input type="text" id="tripDeparture" placeholder="2026-08-10" />
+              </div>
+              <div class="form-group">
+                <label for="tripDays">Số ngày</label>
+                <input type="number" id="tripDays" min="1" max="30" value="3" />
+              </div>
+            </div>
+            
+            <div class="form-row">
+              <div class="form-group">
+                <label for="tripTravelers">Số người đi</label>
+                <input type="number" id="tripTravelers" min="1" max="20" value="1" />
+              </div>
+              <div class="form-group">
+                <label for="tripComfort">Mức dịch vụ</label>
+                <select id="tripComfort">
+                  <option value="budget">Tiết kiệm</option>
+                  <option value="medium" selected>Tầm trung</option>
+                  <option value="comfort">Thoải mái</option>
+                  <option value="luxury">Cao cấp</option>
+                </select>
+              </div>
+            </div>
+            
+            <div class="form-row">
+              <div class="form-group full-width">
+                <label for="tripBudget">Ngân sách dự tính (VND)</label>
+                <input type="text" id="tripBudget" placeholder="Ví dụ: 10000000" />
+              </div>
+            </div>
+          </form>
+        </div>
+        
+        <!-- Dự toán chi phí (Cost Estimate) -->
+        <div class="workspace-section" id="costSection" style="display: none;">
+          <h3 class="section-title">Báo cáo dự toán</h3>
+          <div class="cost-card">
+            <div class="cost-total" id="costTotal">0 VND</div>
+            <div class="cost-per-person" id="costPerPerson">0 VND / người</div>
+            <div class="cost-breakdown-list" id="costBreakdownList">
+              <!-- Chèn chi tiết chi phí qua JS -->
+            </div>
+            <div class="cost-gap" id="costGap"></div>
+          </div>
+        </div>
+        
+        <!-- Thẩm định rủi ro (Risk Warnings) -->
+        <div class="workspace-section" id="riskSection" style="display: none;">
+          <h3 class="section-title">Thẩm định rủi ro</h3>
+          <div class="risk-list" id="riskList">
+            <!-- Chèn rủi ro qua JS -->
+          </div>
+        </div>
+      </div>
+      
+      <div class="workspace-footer">
+        <button id="confirmTripBtn" class="confirm-trip-btn">
+          Xác nhận & Tìm kiếm
+        </button>
+      </div>
+    </aside>
   </div>
 
   <script src="/static/js/app.js"></script>

@@ -728,3 +728,298 @@ body {
   animation: fadeIn 200ms ease;
 }
 @keyframes fadeIn { from { opacity: 0; } to { opacity: 1; } }
+
+/* ── Workspace Panel (Phase 4 HITL UI) ─────────────────── */
+.workspace-panel {
+  width: 380px;
+  flex-shrink: 0;
+  background: var(--bg-sidebar);
+  border-left: 1px solid var(--border);
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  overflow: hidden;
+  animation: slideIn var(--dur-base) var(--ease-out);
+}
+
+@keyframes slideIn {
+  from { transform: translateX(100%); }
+  to   { transform: translateX(0); }
+}
+
+.workspace-header {
+  padding: 20px;
+  border-bottom: 1px solid var(--border);
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.workspace-header h2 {
+  font-size: 16px;
+  font-weight: 600;
+  color: var(--text-primary);
+  letter-spacing: -0.2px;
+}
+
+.plan-status-badge {
+  font-size: 10.5px;
+  font-family: 'JetBrains Mono', monospace;
+  font-weight: 500;
+  padding: 3px 10px;
+  border-radius: var(--radius-pill);
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+
+.plan-status-badge.draft {
+  color: var(--accent-warm);
+  background: var(--accent-warm-dim);
+  border: 1px solid #f59e0b40;
+}
+
+.plan-status-badge.confirmed {
+  color: #22c55e;
+  background: #22c55e1a;
+  border: 1px solid #22c55e40;
+}
+
+.workspace-body {
+  flex: 1;
+  overflow-y: auto;
+  padding: 20px;
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+  scrollbar-width: thin;
+  scrollbar-color: var(--border) transparent;
+}
+
+.workspace-body::-webkit-scrollbar { width: 4px; }
+.workspace-body::-webkit-scrollbar-thumb { background: var(--border); border-radius: 99px; }
+
+.workspace-section {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.section-title {
+  font-size: 11.5px;
+  font-weight: 500;
+  color: var(--text-secondary);
+  text-transform: uppercase;
+  letter-spacing: 0.8px;
+}
+
+/* Trip Form */
+.trip-form {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.form-row {
+  display: flex;
+  gap: 10px;
+}
+
+.form-group {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.form-group.full-width {
+  flex: none;
+  width: 100%;
+}
+
+.form-group label {
+  font-size: 11px;
+  color: var(--text-secondary);
+  font-weight: 400;
+}
+
+.form-group input, .form-group select {
+  background: var(--bg-surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  color: var(--text-primary);
+  font-family: inherit;
+  font-size: 13.5px;
+  padding: 8px 12px;
+  outline: none;
+  transition: border-color var(--dur-fast), box-shadow var(--dur-fast);
+}
+
+.form-group input:focus, .form-group select:focus {
+  border-color: var(--accent);
+  box-shadow: 0 0 0 2px var(--accent-glow);
+}
+
+/* Cost Card */
+.cost-card {
+  background: linear-gradient(135deg, var(--bg-surface) 0%, var(--bg-raised) 100%);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+  padding: 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.cost-total {
+  font-size: 24px;
+  font-weight: 700;
+  color: var(--accent);
+  letter-spacing: -0.5px;
+}
+
+.cost-per-person {
+  font-size: 12px;
+  color: var(--text-secondary);
+  margin-top: -4px;
+}
+
+.cost-breakdown-list {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  margin-top: 10px;
+  padding-top: 10px;
+  border-top: 1px dashed var(--border);
+}
+
+.breakdown-item {
+  display: flex;
+  justify-content: space-between;
+  font-size: 12px;
+  color: var(--text-secondary);
+}
+
+.breakdown-item span:last-child {
+  font-family: 'JetBrains Mono', monospace;
+  color: var(--text-primary);
+}
+
+.cost-gap {
+  font-size: 12px;
+  font-weight: 500;
+  padding: 6px 10px;
+  border-radius: var(--radius-sm);
+  margin-top: 8px;
+}
+
+.cost-gap.surplus {
+  color: #22c55e;
+  background: #22c55e10;
+}
+
+.cost-gap.deficit {
+  color: #ef4444;
+  background: #ef444410;
+}
+
+/* Risk Items */
+.risk-list {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.risk-card {
+  padding: 12px 14px;
+  border-radius: var(--radius-md);
+  border-left: 3px solid transparent;
+  background: var(--bg-surface);
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.risk-card.risk-high {
+  border-left-color: #ef4444;
+  background: #ef444408;
+}
+
+.risk-card.risk-medium {
+  border-left-color: var(--accent-warm);
+  background: #f59e0b08;
+}
+
+.risk-card.risk-low {
+  border-left-color: #3b82f6;
+  background: #3b82f608;
+}
+
+.risk-title {
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--text-primary);
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.risk-detail {
+  font-size: 11.5px;
+  color: var(--text-secondary);
+  line-height: 1.5;
+}
+
+.risk-suggestion {
+  font-size: 11px;
+  color: var(--accent);
+  margin-top: 2px;
+}
+
+/* Workspace Footer */
+.workspace-footer {
+  padding: 16px 20px 20px;
+  border-top: 1px solid var(--border);
+  background: var(--bg-sidebar);
+}
+
+.confirm-trip-btn {
+  width: 100%;
+  padding: 12px;
+  border-radius: var(--radius-md);
+  border: none;
+  background: linear-gradient(to right, #0ea5e9, #0284c7);
+  color: var(--text-on-accent);
+  font-family: inherit;
+  font-size: 14px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: transform var(--dur-fast), opacity var(--dur-fast), background var(--dur-fast);
+  box-shadow: 0 4px 12px #0ea5e930;
+}
+
+.confirm-trip-btn:hover {
+  background: linear-gradient(to right, #38bdf8, #0ea5e9);
+}
+
+.confirm-trip-btn:active {
+  transform: scale(0.98);
+}
+
+.confirm-trip-btn:disabled {
+  background: var(--bg-raised);
+  color: var(--text-muted);
+  cursor: not-allowed;
+  opacity: 0.6;
+  box-shadow: none;
+}
+
+@media (max-width: 1024px) {
+  .workspace-panel {
+    position: fixed;
+    top: 0; right: 0; bottom: 0;
+    z-index: 90;
+    width: 320px;
+    box-shadow: -4px 0 32px #00000050;
+    display: none;
+  }
+}

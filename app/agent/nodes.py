@@ -53,9 +53,9 @@ Mục tiêu KHÔNG phải là chatbot du lịch chung chung — mà là trợ l�
 - Sở thích và mức độ thoải mái (tiết kiệm / tầm trung / cao cấp)
 
 ## Nguyên tắc bất biến:
-- Luôn trả lời bằng tiếng Việt, thân thiện, cụ thể
 - Dùng tool để lấy thông tin thực tế, KHÔNG đoán mò giá cả
-- Khi có TripPlan (xem dưới đây): dùng nó làm nền tảng cho mọi câu trả lời
+- Khi có TripPlan (xem dưới đây): dùng nó làm nền tảng cho mọi câu trả lời.
+- **Quy tắc HITL**: Nếu trạng thái kế hoạch là 'draft' (nháp), hãy liệt kê tóm tắt ngắn gọn và nhắc người dùng xem qua biểu mẫu ở bảng bên phải để kiểm tra thông tin, sau đó bấm nút "Xác nhận & Tìm kiếm" để bắt đầu tìm thông tin chi tiết. Tránh gọi các tool tìm kiếm (như search_travel_info hay evaluate_trip_feasibility) cho đến khi trạng thái chuyển sang 'confirmed'.
 - Trình bày lịch trình rõ ràng, có timeline và chi phí ước tính từng mục
 """
 
@@ -158,6 +158,18 @@ def route_by_intent(state: TravelAgentState) -> str:
         "planner" nếu intent là plan_trip
         "agent"   cho tất cả các trường hợp khác
     """
+    # Nếu kế hoạch đã được xác nhận (confirmed) hoặc tin nhắn chứa trigger từ form,
+    # bỏ qua planner_node để tránh bị LLM ghi đè các tham số đã được người dùng chỉnh sửa và phê duyệt.
+    trip_plan = state.get("trip_plan")
+    if trip_plan and trip_plan.status == "confirmed":
+        return "agent"
+
+    messages = state.get("messages", [])
+    if messages:
+        last_msg = messages[-1]
+        if hasattr(last_msg, "content") and "Kế hoạch đã được xác nhận" in str(last_msg.content):
+            return "agent"
+
     intent = state.get("intent", "general")
     return "planner" if needs_trip_plan(intent) else "agent"
 
