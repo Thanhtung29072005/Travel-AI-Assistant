@@ -225,13 +225,18 @@ async def chat_stream(request: ChatRequest):
                 if kind == "on_chain_start" and name == "LangGraph":
                     yield f"data: {json.dumps({'type': 'status', 'status': 'Hana đang chuẩn bị...'})}\n\n"
 
-                elif kind == "on_chat_model_start":
-                    if node_name == "classify":
-                        yield f"data: {json.dumps({'type': 'status', 'status': 'Đang phân tích ý định...'})}\n\n"
-                    elif node_name == "planner":
-                        yield f"data: {json.dumps({'type': 'status', 'status': 'Đang cập nhật biểu mẫu chuyến đi...'})}\n\n"
-                    elif node_name == "agent":
-                        yield f"data: {json.dumps({'type': 'status', 'status': 'Đang phản hồi...'})}\n\n"
+                elif kind == "on_chain_start" and node_name:
+                    status_desc = {
+                        "classify": "Đang phân tích ý định...",
+                        "planner": "Đang phân tích biểu mẫu chuyến đi...",
+                        "supervisor": "Trưởng nhóm đang phân bổ công việc...",
+                        "weather_agent": "Trợ lý Thời tiết đang xem dự báo...",
+                        "cost_agent": "Trợ lý Dự toán đang thẩm định chi phí...",
+                        "itinerary_agent": "Trợ lý Lịch trình đang lên chi tiết từng ngày...",
+                        "agent": "Trợ lý Hana đang hoàn thiện câu trả lời...",
+                    }.get(node_name)
+                    if status_desc:
+                        yield f"data: {json.dumps({'type': 'status', 'status': status_desc})}\n\n"
 
                 # 2. Stream tokens (chỉ từ agent chính)
                 elif kind == "on_chat_model_stream":

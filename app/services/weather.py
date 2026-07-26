@@ -145,22 +145,26 @@ class WeatherService:
         city: str,
         days: int = 5,
     ) -> WeatherData:
-        """
-        Lấy thời tiết hiện tại + dự báo cho một thành phố.
+        """Lấy dữ liệu thời tiết cho một thành phố."""
+        if not self._api_key:
+            return self._missing_data(city, reason="Thiếu OpenWeatherMap API Key")
 
-        Args:
-            city: Tên thành phố (tiếng Việt OK, API sẽ geocode)
-            days: Số ngày dự báo (tối đa 5 với free tier)
+        # Ánh xạ địa danh phổ biến của Việt Nam sang thành phố tương ứng trên OpenWeatherMap
+        city_mapping = {
+            "phu quoc": "Duong Dong",
+            "phú quốc": "Duong Dong",
+            "đảo phú quốc": "Duong Dong",
+            "dao phu quoc": "Duong Dong",
+        }
 
-        Returns:
-            WeatherData đã normalize
-        """
-        if not self._enabled:
-            return self._missing_data(city, reason="OPENWEATHERMAP_API_KEY chưa được cấu hình")
+        normalized = city.strip().lower()
+        query_city = city_mapping.get(normalized, city)
 
         try:
             import httpx
-            return self._fetch_weather(city, min(days, 5))
+            data = self._fetch_weather(query_city, min(days, 5))
+            data.city = city  # Giữ tên hiển thị gốc (ví dụ: Phú Quốc)
+            return data
         except ImportError:
             return self._missing_data(city, reason="httpx chưa được cài (pip install httpx)")
         except Exception as e:

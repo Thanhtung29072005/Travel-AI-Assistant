@@ -29,7 +29,7 @@ class Settings(BaseSettings):
     port: int = 8000
     
     # LLM Settings
-    gemini_model: str = "gemini-2.5-flash"
+    gemini_model: str = "gemini-3.5-flash"
     temperature: float = 0.7
     max_tokens: int = 4096
 

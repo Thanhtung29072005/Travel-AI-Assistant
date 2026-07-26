@@ -1,43 +1,50 @@
 """
-LangGraph Graph - Định nghĩa luồng xử lý của Travel AI Agent
+LangGraph Graph - Định nghĩa luồng xử lý của Travel AI Agent (Multi-Agent Architecture)
 
-Phase 2 Pipeline:
+Luồng hoạt động Multi-Agent Choreography:
   START
    │
    ▼
-  intent_node          ← Heuristic classifier (không gọi LLM)
+  classify (intent)
    │
-   ├── "plan_trip" ──► planner_node   ← LLM nhẹ: extract TripPlan
-   │                        │
-   │                        ▼
-   │                   agent_node     ← LLM đầy đủ với TripPlan context
+   ├── "planner" ────► planner ──► agent (trả lời kế hoạch nháp)
    │
-   └── "general"  ────► agent_node
-         │
-  agent_node
+   ├── "agent" ──────► agent (các câu hỏi thường/chitchat)
    │
-   ├── "tools" ──► tool_node ──► track_tools ──► agent_node (vòng lặp)
-   └── "end"   ──► END
+   └── "supervisor" ──► supervisor (Kế hoạch đã duyệt)
+                         │
+                         ├──► weather_agent ──┐
+                         ├──► cost_agent    ──┼──► supervisor (quay vòng lặp)
+                         ├──► itinerary_agent ┘
+                         │
+                         └──► agent (Consolidator - tổng hợp phản hồi cuối) ──► END
 """
 from langgraph.graph import StateGraph, START, END
 from langgraph.graph.state import CompiledStateGraph
 
 from app.agent.state import TravelAgentState
+
+# Core Nodes & Edges
 from app.agent.nodes import (
     intent_node,
     route_by_intent,
-    planner_node,
-    agent_node,
     tool_node,
     track_tools_node,
     should_continue,
 )
 
+# Specialized Agents & Supervisor Nodes
+from app.agent.planner_agent import planner_node
+from app.agent.response_agent import agent_node
+from app.agent.supervisor import supervisor_node, route_supervisor
+from app.agent.weather_agent import weather_agent_node
+from app.agent.cost_agent import cost_agent_node
+from app.agent.itinerary_agent import itinerary_agent_node
 
 
 def create_travel_agent() -> CompiledStateGraph:
     """
-    Tạo và compile LangGraph workflow Phase 2 cho Travel AI Agent.
+    Tạo và compile LangGraph workflow Multi-Agent cho Travel AI Agent.
 
     Returns:
         Compiled graph sẵn sàng để invoke
@@ -45,41 +52,65 @@ def create_travel_agent() -> CompiledStateGraph:
     graph = StateGraph(TravelAgentState)
 
     # ── Đăng ký nodes ─────────────────────────────────────────────
-    graph.add_node("classify",    intent_node)       # Phase 2: nhận diện intent
-    graph.add_node("planner",     planner_node)      # Phase 2: tạo/cập nhật TripPlan
-    graph.add_node("agent",       agent_node)        # Node AI chính (ReAct)
-    graph.add_node("tools",       tool_node)         # Node thực thi tools
-    graph.add_node("track_tools", track_tools_node)  # Node ghi log tools
+    graph.add_node("classify",        intent_node)
+    graph.add_node("planner",         planner_node)
+    graph.add_node("agent",           agent_node)
+    graph.add_node("tools",           tool_node)
+    graph.add_node("track_tools",     track_tools_node)
+    
+    # Specialized Sub-Agents & Supervisor
+    graph.add_node("supervisor",      supervisor_node)
+    graph.add_node("weather_agent",   weather_agent_node)
+    graph.add_node("cost_agent",      cost_agent_node)
+    graph.add_node("itinerary_agent", itinerary_agent_node)
 
     # ── Edges ──────────────────────────────────────────────────────
 
     # START → classify (bắt đầu luôn từ phân loại intent)
     graph.add_edge(START, "classify")
 
-    # classify → (conditional) → planner HOẶC agent
+    # classify → (conditional) → planner, agent HOẶC supervisor
     graph.add_conditional_edges(
         source="classify",
         path=route_by_intent,
         path_map={
-            "planner": "planner",   # plan_trip → qua planner trước
-            "agent":   "agent",     # general/ask_* → thẳng vào agent
+            "planner": "planner",
+            "agent": "agent",
+            "supervisor": "supervisor",
         },
     )
 
-    # planner → agent (sau khi có TripPlan, AI mới trả lời)
+    # planner → agent (sau khi có TripPlan nháp, Response Agent trả lời ngay)
     graph.add_edge("planner", "agent")
 
-    # agent → (conditional) → tools HOẶC END
+    # supervisor → (conditional) → điều phối các sub-agents chuyên trách
+    graph.add_conditional_edges(
+        source="supervisor",
+        path=route_supervisor,
+        path_map={
+            "weather_agent": "weather_agent",
+            "cost_agent": "cost_agent",
+            "itinerary_agent": "itinerary_agent",
+            "agent": "agent",
+        },
+    )
+
+    # Các Agent con sau khi chạy xong ➔ quay lại supervisor để định tuyến tiếp
+    graph.add_edge("weather_agent",   "supervisor")
+    graph.add_edge("cost_agent",      "supervisor")
+    graph.add_edge("itinerary_agent", "supervisor")
+
+    # agent → (conditional) → tools HOẶC END (vòng lặp ReAct truyền thống cho agent chính)
     graph.add_conditional_edges(
         source="agent",
         path=should_continue,
         path_map={
-            "tools": "tools",   # Gọi tool nếu cần
-            "end":   END,       # Kết thúc nếu đã có câu trả lời
+            "tools": "tools",
+            "end":   END,
         },
     )
 
-    # tools → track_tools → agent (vòng lặp ReAct)
+    # tools → track_tools → agent
     graph.add_edge("tools",       "track_tools")
     graph.add_edge("track_tools", "agent")
 
