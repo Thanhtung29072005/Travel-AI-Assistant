@@ -1,0 +1,4 @@
+interface:
+  display_name: "Travel Guardrails Cost"
+  short_description: "Add scope, cost, cache, and abuse controls to the travel agent."
+  default_prompt: "Use this skill when adding out-of-scope handling, tool budgets, rate limits, caching, or cost logging to the Travel AI Agent."

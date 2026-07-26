@@ -1,0 +1,4 @@
+interface:
+  display_name: "Travel LangGraph Backend"
+  short_description: "Work on this repo's LangGraph/FastAPI agent backend."
+  default_prompt: "Use this skill when changing the Travel AI Agent backend graph, agents, state, routers, or service flow."

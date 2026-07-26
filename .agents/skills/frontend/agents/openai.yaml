@@ -1,0 +1,4 @@
+interface:
+  display_name: "Travel Frontend Workspace"
+  short_description: "Build and refine the React travel planning workspace."
+  default_prompt: "Use this skill when changing the Travel AI Agent React UI, streaming chat, cards, itinerary timeline, or trip workspace."

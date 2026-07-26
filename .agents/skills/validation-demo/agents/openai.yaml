@@ -1,0 +1,4 @@
+interface:
+  display_name: "Travel Validation Demo"
+  short_description: "Validate, demo, and polish this Travel AI Agent repo."
+  default_prompt: "Use this skill when running checks, preparing demo evidence, improving README, Docker, tests, or interview presentation for the Travel AI Agent."
