@@ -233,22 +233,11 @@ class TripCostCalculator:
         nights: Optional[int] = None,
         origin: Optional[str] = None,
         has_flight: bool = True,
+        flight_options: Optional[list] = None,
+        hotel_options: Optional[list] = None,
     ) -> CostEstimate:
         """
-        Ước tính chi phí dựa trên TripPlan fields.
-
-        Args:
-            destination: Điểm đến
-            days: Số ngày
-            travelers: Số người
-            comfort_level: "budget"|"medium"|"comfort"|"luxury"
-            budget_provided: Ngân sách từ TripPlan (0 = không có)
-            nights: Số đêm (mặc định = days - 1)
-            origin: Điểm xuất phát (ảnh hưởng giá vé)
-            has_flight: Có tính vé máy bay không
-
-        Returns:
-            CostEstimate đã tính toán
+        Ước tính chi phí dựa trên TripPlan fields và tùy chọn thực tế từ Gateway.
         """
         nights = nights if nights is not None else max(days - 1, 1)
         dest_key = destination.lower().strip()
@@ -257,21 +246,36 @@ class TripCostCalculator:
         # --- Vé máy bay ---
         flight_cost_pp = 0.0
         if has_flight:
-            flight_table = _FLIGHT_COSTS.get(
-                next((k for k in _FLIGHT_COSTS if k in dest_key), None),
-                {"default": 2_000_000}
-            )
-            origin_key = (origin or "").lower().strip()
-            if "hà nội" in origin_key or "hanoi" in origin_key or "hn" in origin_key:
-                flight_cost_pp = flight_table.get("hn", flight_table["default"])
-            elif "hồ chí minh" in origin_key or "hcm" in origin_key or "saigon" in origin_key:
-                flight_cost_pp = flight_table.get("hcm", flight_table["default"])
-            else:
-                flight_cost_pp = flight_table["default"]
+            if flight_options:
+                # Lấy trung bình cộng từ các vé thực tế tìm thấy
+                prices = [f.price for f in flight_options if f.price > 0]
+                if prices:
+                    flight_cost_pp = sum(prices) / len(prices)
+            
+            if not flight_cost_pp:
+                flight_table = _FLIGHT_COSTS.get(
+                    next((k for k in _FLIGHT_COSTS if k in dest_key), None),
+                    {"default": 2_000_000}
+                )
+                origin_key = (origin or "").lower().strip()
+                if "hà nội" in origin_key or "hanoi" in origin_key or "hn" in origin_key:
+                    flight_cost_pp = flight_table.get("hn", flight_table["default"])
+                elif "hồ chí minh" in origin_key or "hcm" in origin_key or "saigon" in origin_key:
+                    flight_cost_pp = flight_table.get("hcm", flight_table["default"])
+                else:
+                    flight_cost_pp = flight_table["default"]
 
         # --- Khách sạn ---
-        hotel_table = _HOTEL_COSTS.get(comfort, _HOTEL_COSTS["medium"])
-        hotel_night = _lookup(hotel_table, dest_key)
+        hotel_night = 0.0
+        if hotel_options:
+            # Lấy trung bình cộng từ các khách sạn thực tế tìm thấy
+            prices = [h.price_per_night for h in hotel_options if h.price_per_night > 0]
+            if prices:
+                hotel_night = sum(prices) / len(prices)
+
+        if not hotel_night:
+            hotel_table = _HOTEL_COSTS.get(comfort, _HOTEL_COSTS["medium"])
+            hotel_night = _lookup(hotel_table, dest_key)
 
         # Điều chỉnh nếu >2 người cùng phòng (chia đôi giá phòng)
         rooms_needed = max(1, travelers // 2)
@@ -440,6 +444,8 @@ class DecisionEngine:
         origin: Optional[str] = None,
         departure_month: Optional[int] = None,
         weather_warning: str = "",
+        flight_options: Optional[list] = None,
+        hotel_options: Optional[list] = None,
     ) -> DecisionReport:
         """
         Chạy full evaluation cho một chuyến đi.
@@ -455,6 +461,8 @@ class DecisionEngine:
             budget_provided=budget_provided,
             nights=nights,
             origin=origin,
+            flight_options=flight_options,
+            hotel_options=hotel_options,
         )
 
         risks = self._analyzer.analyze(

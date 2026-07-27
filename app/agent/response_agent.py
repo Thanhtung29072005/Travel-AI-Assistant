@@ -72,6 +72,12 @@ def agent_node(state: TravelAgentState) -> TravelAgentState:
     context_str = ""
     if travel_context.get("weather"):
         context_str += f"\n### Dữ liệu Thời tiết:\n{travel_context['weather']}\n"
+    if travel_context.get("flights"):
+        flights_list = "\n".join([f"  {f}" for f in travel_context["flights"]])
+        context_str += f"\n### Các chuyến bay đề xuất:\n{flights_list}\n"
+    if travel_context.get("hotels"):
+        hotels_list = "\n".join([f"  {h}" for h in travel_context["hotels"]])
+        context_str += f"\n### Các khách sạn đề xuất:\n{hotels_list}\n"
     if travel_context.get("cost_feasibility"):
         context_str += f"\n### Dữ liệu Thẩm định Chi phí & Rủi ro:\n{travel_context['cost_feasibility']}\n"
     if travel_context.get("itinerary"):

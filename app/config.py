@@ -33,10 +33,14 @@ class Settings(BaseSettings):
     temperature: float = 0.7
     max_tokens: int = 4096
 
+    # SerpApi
+    serpapi_api_key: str = ""
+
     class Config:
         env_file = ".env"
         env_file_encoding = "utf-8"
         case_sensitive = False
+        extra = "ignore"
 
 
 @lru_cache()
