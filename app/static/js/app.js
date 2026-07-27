@@ -1,175 +1,325 @@
 /**
- * Hana Travel AI – Frontend Chat & Interactive Workspace Logic (Phase 4)
- * Pure vanilla JS, no dependencies.
+ * Travel AI Assistant – Frontend Logic (Light Mode Redesign)
+ * Vanilla JS, no dependencies.
  */
 
 const API_BASE = '/api';
 
-// ── State ─────────────────────────────────────────────────
-let sessionId = null;
+// ── State ──────────────────────────────────────────────────
+let sessionId     = null;
 let conversationHistory = [];
-let isLoading = false;
-let currentPlan = null;
+let isLoading     = false;
+let currentPlan   = null;
 let currentDecision = null;
+let chatHistory   = []; // [{id, title, sessionId, time}]
+let activeHistoryId = null;
 
-// ── DOM refs ──────────────────────────────────────────────
+// ── DOM refs ───────────────────────────────────────────────
 const $ = (id) => document.getElementById(id);
 
-const msgInput       = $('msgInput');
-const chatForm       = $('chatForm');
-const sendBtn        = $('sendBtn');
-const messageArea    = $('messageArea');
-const typingIndicator= $('typingIndicator');
-const charCount      = $('charCount');
-const welcomeState   = $('welcomeState');
-const clearBtn       = $('clearBtn');
-const statusDot      = $('statusDot');
-const statusText     = $('statusText');
-const modelBadge     = $('modelBadge');
-const searchBadge    = $('searchBadge');
-const sidebar        = $('sidebar');
-const sidebarToggle  = $('sidebarToggle');
-const headerSub      = $('headerSub');
+const msgInput        = $('msgInput');
+const chatForm        = $('chatForm');
+const sendBtn         = $('sendBtn');
+const messageArea     = $('messageArea');
+const typingIndicator = $('typingIndicator');
+const welcomeState    = $('welcomeState');
+const sidebar         = $('sidebar');
+const sidebarToggle   = $('sidebarToggle');
+const headerSub       = $('headerSub');
+const headerName      = $('headerName');
+const historyList     = $('historyList');
+const newChatBtn      = $('newChatBtn');
 
-// Workspace refs (Phase 4 HITL)
-const workspacePanel   = $('workspacePanel');
-const planStatusBadge  = $('planStatusBadge');
-const tripForm         = $('tripForm');
-const tripOrigin       = $('tripOrigin');
-const tripDestination  = $('tripDestination');
-const tripDeparture    = $('tripDeparture');
-const tripDays         = $('tripDays');
-const tripTravelers    = $('tripTravelers');
-const tripComfort      = $('tripComfort');
-const tripBudget       = $('tripBudget');
+// Workspace refs
+const workspacePanel  = $('workspacePanel');
+const wsTripTitle     = $('wsTripTitle');
+const wsTripMeta      = $('wsTripMeta');
+const wsTags          = $('wsTags');
+const planInfoSection = $('planInfoSection');
+const editPlanBtn     = $('editPlanBtn');
+const tripEditForm    = $('tripEditForm');
+const formSaveBtn     = $('formSaveBtn');
 
-const costSection      = $('costSection');
-const costTotal        = $('costTotal');
-const costPerPerson    = $('costPerPerson');
-const costBreakdownList= $('costBreakdownList');
-const costGap          = $('costGap');
+// KV fields
+const kvOrigin        = $('kvOrigin');
+const kvDestination   = $('kvDestination');
+const kvDates         = $('kvDates');
+const kvTravelers     = $('kvTravelers');
+const kvPreferences   = $('kvPreferences');
+const kvComfort       = $('kvComfort');
 
-const riskSection      = $('riskSection');
+// Form fields
+const tripOrigin      = $('tripOrigin');
+const tripDestination = $('tripDestination');
+const tripDeparture   = $('tripDeparture');
+const tripDays        = $('tripDays');
+const tripTravelers   = $('tripTravelers');
+const tripComfort     = $('tripComfort');
+const tripBudget      = $('tripBudget');
+
+// Cost/Risk
+const costSection       = $('costSection');
+const costTotal         = $('costTotal');
+const costPerPerson     = $('costPerPerson');
+const costBreakdownList = $('costBreakdownList');
+const costGap           = $('costGap');
+const riskSection       = $('riskSection');
 const riskList          = $('riskList');
-const confirmTripBtn   = $('confirmTripBtn');
+const itinerarySection  = $('itinerarySection');
+const itineraryList     = $('itineraryList');
 
-// ── Init ──────────────────────────────────────────────────
+const reasonSection   = $('reasonSection');
+const reasonBox       = $('reasonBox');
+const reasonText      = $('reasonText');
+const confirmTripBtn  = $('confirmTripBtn');
+const exportMdBtn     = $('exportMdBtn');
+const exportPdfBtn    = $('exportPdfBtn');
+
+// ── Init ───────────────────────────────────────────────────
 document.addEventListener('DOMContentLoaded', () => {
   checkHealth();
+  loadHistoryFromStorage();
   bindEvents();
-  bindWorkspaceEvents();
 });
 
-// ── Health check ──────────────────────────────────────────
+// ── Health check ───────────────────────────────────────────
 async function checkHealth() {
   try {
     const res = await fetch(`${API_BASE}/health`);
     if (!res.ok) throw new Error('Server returned ' + res.status);
     const data = await res.json();
-
-    statusDot.className  = 'status-dot online';
-    statusText.textContent = 'Online';
-    modelBadge.textContent = data.model ?? '—';
-
-    if (data.search_enabled) {
-      searchBadge.classList.add('active');
-      searchBadge.title = 'Tìm kiếm web đang hoạt động';
-    }
+    headerSub.textContent = `Trợ lý du lịch AI · ${data.model ?? ''}`;
   } catch {
-    statusDot.className  = 'status-dot offline';
-    statusText.textContent = 'Không kết nối được';
-    headerSub.textContent  = 'Server offline';
+    headerSub.textContent = 'Server offline';
   }
 }
 
-// ── Event bindings ────────────────────────────────────────
+// ── Event bindings ─────────────────────────────────────────
 function bindEvents() {
-  // Form submit
-  chatForm.addEventListener('submit', (e) => {
-    e.preventDefault();
-    handleSend();
-  });
+  chatForm.addEventListener('submit', (e) => { e.preventDefault(); handleSend(); });
 
-  // Textarea: Enter = send, Shift+Enter = newline
   msgInput.addEventListener('keydown', (e) => {
-    if (e.key === 'Enter' && !e.shiftKey) {
-      e.preventDefault();
-      handleSend();
-    }
+    if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); handleSend(); }
   });
 
-  // Auto-resize textarea
   msgInput.addEventListener('input', () => {
-    updateCharCount();
     autoResize();
     sendBtn.disabled = msgInput.value.trim().length === 0 || isLoading;
   });
 
-  // Suggestion chips
-  document.querySelectorAll('.suggestion-chip').forEach((chip) => {
+  // Welcome chips
+  document.querySelectorAll('.welcome-chip').forEach((chip) => {
     chip.addEventListener('click', () => {
       const msg = chip.dataset.msg;
       if (msg && !isLoading) {
         msgInput.value = msg;
-        updateCharCount();
         autoResize();
         sendBtn.disabled = false;
-        closeSidebar();
         handleSend();
       }
     });
   });
 
-  // Clear conversation
-  clearBtn.addEventListener('click', clearConversation);
+  // New chat button
+  newChatBtn.addEventListener('click', startNewChat);
 
   // Sidebar toggle (mobile)
   sidebarToggle.addEventListener('click', toggleSidebar);
-}
 
-function bindWorkspaceEvents() {
-  // Form inputs change (HITL Patch)
-  const inputs = [tripOrigin, tripDestination, tripDeparture, tripDays, tripTravelers, tripComfort, tripBudget];
-  inputs.forEach((input) => {
-    input.addEventListener('change', patchTripPlan);
+  // Edit plan toggle
+  editPlanBtn.addEventListener('click', () => {
+    tripEditForm.classList.toggle('visible');
+    editPlanBtn.textContent = tripEditForm.classList.contains('visible') ? 'Đóng' : 'Chỉnh sửa';
   });
 
-  // Button confirm click (HITL Confirm)
+  // Save form changes
+  formSaveBtn.addEventListener('click', patchTripPlan);
+
+  // Confirm trip
   confirmTripBtn.addEventListener('click', confirmTripPlan);
+
+  // Export buttons
+  exportMdBtn.addEventListener('click', exportMarkdown);
+  exportPdfBtn.addEventListener('click', () => window.print());
+
+  // Settings / Help (placeholder)
+  $('settingsBtn').addEventListener('click', () => alert('Cài đặt – sắp ra mắt!'));
+  $('helpBtn').addEventListener('click', () => alert('Trợ giúp – sắp ra mắt!'));
+
+  // More button (header)
+  $('moreHeaderBtn').addEventListener('click', () => alert('Thêm tùy chọn – sắp ra mắt!'));
 }
 
-// ── Send message (SSE Streaming) ──────────────────────────
+// ── Chat History (localStorage) ───────────────────────────
+function loadHistoryFromStorage() {
+  try {
+    const stored = localStorage.getItem('travelAI_history');
+    chatHistory = stored ? JSON.parse(stored) : [];
+  } catch { chatHistory = []; }
+  renderHistoryList();
+}
+
+function saveHistoryToStorage() {
+  localStorage.setItem('travelAI_history', JSON.stringify(chatHistory.slice(0, 20)));
+}
+
+function renderHistoryList() {
+  historyList.innerHTML = '';
+  if (chatHistory.length === 0) {
+    historyList.innerHTML = '<div style="padding:12px 10px;font-size:12px;color:var(--text-muted);text-align:center">Chưa có cuộc trò chuyện</div>';
+    return;
+  }
+  chatHistory.forEach((item) => {
+    const btn = document.createElement('button');
+    btn.className = `history-item${item.id === activeHistoryId ? ' active' : ''}`;
+    btn.dataset.id = item.id;
+
+    const emoji = item.title.includes('Phú Quốc') ? '🏝' :
+                  item.title.includes('Đà Nẵng') ? '🌊' :
+                  item.title.includes('Hà Nội') ? '🏛' :
+                  item.title.includes('Hội An') ? '🏮' :
+                  item.title.includes('Sapa') ? '⛰' : '✈';
+
+    btn.innerHTML = `
+      <div class="history-item-icon">${emoji}</div>
+      <div class="history-item-text">
+        <div class="history-item-title">${escapeHtml(item.title)}</div>
+        <div class="history-item-time">${item.time}</div>
+      </div>
+    `;
+    btn.addEventListener('click', () => {
+      if (item.id === activeHistoryId) return;
+      activeHistoryId = item.id;
+      sessionId = item.sessionId;
+      headerName.textContent = item.title;
+      renderHistoryList();
+      loadSession(item.sessionId);
+    });
+    historyList.appendChild(btn);
+  });
+}
+
+function addToHistory(title, sid) {
+  const id = Date.now().toString();
+  const now = new Date().toLocaleTimeString('vi-VN', { hour: '2-digit', minute: '2-digit' });
+  chatHistory.unshift({ id, title, sessionId: sid, time: now });
+  activeHistoryId = id;
+  saveHistoryToStorage();
+  renderHistoryList();
+}
+
+function updateHistoryTitle(title) {
+  const item = chatHistory.find((h) => h.id === activeHistoryId);
+  if (item) {
+    item.title = title;
+    saveHistoryToStorage();
+    renderHistoryList();
+  }
+}
+
+async function loadSession(sid) {
+  if (!sid || sid === 'pending') {
+    conversationHistory = [];
+    currentPlan = null;
+    currentDecision = null;
+    const groups = messageArea.querySelectorAll('.msg-group');
+    groups.forEach((g) => g.remove());
+    if (welcomeState) welcomeState.style.display = '';
+    workspacePanel.style.display = 'none';
+    return;
+  }
+
+  setLoading(true);
+
+  const groups = messageArea.querySelectorAll('.msg-group');
+  groups.forEach((g) => g.remove());
+  if (welcomeState) welcomeState.style.display = 'none';
+
+  try {
+    const res = await fetch(`${API_BASE}/trips/${sid}`);
+    if (!res.ok) throw new Error("Không thể tải thông tin cuộc trò chuyện.");
+    const data = await res.json();
+
+    // 1. Phục hồi lịch sử chat
+    conversationHistory = data.history || [];
+    if (conversationHistory.length > 0) {
+      conversationHistory.forEach((msg) => {
+        appendMessage(msg.role, msg.content);
+      });
+    } else {
+      if (welcomeState) welcomeState.style.display = '';
+    }
+
+    // 2. Phục hồi workspace
+    currentPlan = data.plan;
+    currentDecision = data.decision;
+    updateWorkspaceUI();
+
+  } catch (err) {
+    console.error("Lỗi khi tải session:", err);
+  } finally {
+    setLoading(false);
+  }
+}
+
+// ── New Chat ───────────────────────────────────────────────
+function startNewChat(resetHeader = true) {
+  // Đừng xóa activeHistoryId của session cũ khỏi list –
+  // chỉ deactivate nó trên UI, dữ liệu vẫn còn trong localStorage.
+  conversationHistory = [];
+  sessionId = null;
+  currentPlan = null;
+  currentDecision = null;
+  activeHistoryId = null;
+
+  // Clear messages
+  const groups = messageArea.querySelectorAll('.msg-group');
+  groups.forEach((g) => g.remove());
+  if (welcomeState) welcomeState.style.display = '';
+
+  // Hide workspace
+  workspacePanel.style.display = 'none';
+
+  if (resetHeader) {
+    headerName.textContent = 'Lập kế hoạch chuyến đi';
+  }
+  renderHistoryList();
+
+  msgInput.value = '';
+  autoResize();
+  sendBtn.disabled = true;
+  closeSidebar();
+}
+
+// ── Send message ───────────────────────────────────────────
 async function handleSend(customText = null) {
   const text = customText || msgInput.value.trim();
   if (!text || isLoading) return;
 
-  // Dismiss welcome state
-  if (welcomeState) {
-    welcomeState.style.display = 'none';
-  }
+  if (welcomeState) welcomeState.style.display = 'none';
 
-  // Append user message
   appendMessage('user', text);
 
-  // Clear input if not custom text
   if (!customText) {
     msgInput.value = '';
-    updateCharCount();
     autoResize();
   }
   sendBtn.disabled = true;
+  setLoading(true, false);
 
-  // Show typing indicator / status bar
-  setLoading(true);
-
-  // Create temporary bubble for streaming text
   const aiBubbleId = appendEmptyAiBubble();
   const bubbleDiv = $(aiBubbleId);
 
-  // Track in history
   conversationHistory.push({ role: 'user', content: text });
 
+  // ── Lưu lịch sử ngay từ tin nhắn đầu tiên (không chờ plan) ──
+  if (!activeHistoryId) {
+    const shortTitle = text.length > 45 ? text.slice(0, 45) + '…' : text;
+    addToHistory(shortTitle, null); // sessionId = null, cập nhật sau khi có 'done'
+  }
+
   let accumulatedResponse = '';
+  let firstResponse = true;
 
   try {
     const response = await fetch(`${API_BASE}/chat/stream`, {
@@ -178,7 +328,7 @@ async function handleSend(customText = null) {
       body: JSON.stringify({
         message: text,
         session_id: sessionId,
-        conversation_history: conversationHistory.slice(0, -1), // exclude current
+        conversation_history: conversationHistory.slice(0, -1),
       }),
     });
 
@@ -197,7 +347,7 @@ async function handleSend(customText = null) {
 
       buffer += decoder.decode(value, { stream: true });
       const lines = buffer.split('\n');
-      buffer = lines.pop(); // keep last incomplete line
+      buffer = lines.pop();
 
       for (const line of lines) {
         const cleanLine = line.trim();
@@ -207,24 +357,32 @@ async function handleSend(customText = null) {
           const payload = JSON.parse(cleanLine.slice(6));
 
           if (payload.type === 'status') {
-            // Hiển thị trạng thái hoạt động của agent
-            updateStatusText(payload.status);
+            headerSub.textContent = payload.status;
           } else if (payload.type === 'token') {
-            // Tích lũy và cập nhật text
             accumulatedResponse += payload.content;
             bubbleDiv.innerHTML = renderMarkdown(accumulatedResponse);
             scrollToBottom();
           } else if (payload.type === 'plan') {
-            // Cập nhật TripPlan lên UI
             currentPlan = payload.data;
+            // Cập nhật tiêu đề lịch sử khi biết điểm đến cụ thể
+            if (currentPlan && currentPlan.destination) {
+              const title = buildTripTitle(currentPlan);
+              updateHistoryTitle(title);
+              headerName.textContent = title;
+            }
             updateWorkspaceUI();
           } else if (payload.type === 'decision') {
-            // Cập nhật Decision Report (Chi phí / rủi ro) lên UI
             currentDecision = payload.data;
             updateWorkspaceUI();
           } else if (payload.type === 'done') {
-            // Kết thúc an toàn
             sessionId = payload.session_id;
+            // Cập nhật sessionId thật vào history item đã lưu từ đầu
+            const item = chatHistory.find((h) => h.id === activeHistoryId);
+            if (item) {
+              item.sessionId = sessionId || item.sessionId;
+              saveHistoryToStorage();
+              renderHistoryList();
+            }
             if (payload.tools_used && payload.tools_used.length > 0) {
               appendToolTags(bubbleDiv, payload.tools_used);
             }
@@ -232,72 +390,67 @@ async function handleSend(customText = null) {
             throw new Error(payload.message);
           }
         } catch (e) {
-          console.error("Lỗi khi parse SSE line:", cleanLine, e);
+          console.error('SSE parse error:', cleanLine, e);
         }
       }
     }
 
-    // Save success response to history
     conversationHistory.push({ role: 'assistant', content: accumulatedResponse });
 
   } catch (err) {
     bubbleDiv.classList.add('msg-error');
-    bubbleDiv.innerHTML = `<p>Lỗi: ${err.message}</p>`;
+    bubbleDiv.innerHTML = `<p>Lỗi: ${escapeHtml(err.message)}</p>`;
   } finally {
     setLoading(false);
-    updateStatusText("Trợ lý du lịch AI");
+    headerSub.textContent = 'Trợ lý du lịch AI';
     sendBtn.disabled = msgInput.value.trim().length === 0;
   }
 }
 
-// ── Append empty AI message bubble for streaming ────────
+function buildTripTitle(plan) {
+  const dest = plan.destination || '';
+  const days = plan.dates?.days || '';
+  const travelers = plan.travelers || '';
+  if (dest && days) return `${dest} ${days} ngày${travelers ? ` · ${travelers} người` : ''}`;
+  if (dest) return `Chuyến đi ${dest}`;
+  return 'Kế hoạch chuyến đi';
+}
+
+// ── Append bubbles ─────────────────────────────────────────
 let bubbleCounter = 0;
+
 function appendEmptyAiBubble() {
-  const isUser = false;
   bubbleCounter++;
   const bubbleId = `ai-bubble-${bubbleCounter}`;
-
   const group = document.createElement('div');
-  group.className = `msg-group ai-group`;
-
+  group.className = 'msg-group ai-group';
   const timestamp = new Date().toLocaleTimeString('vi-VN', { hour: '2-digit', minute: '2-digit' });
-
   group.innerHTML = `
     <div class="msg msg-ai">
       <div class="msg-avatar" aria-hidden="true">H</div>
-      <div class="msg-bubble" id="${bubbleId}">
-        <span class="streaming-cursor"></span>
-      </div>
+      <div class="msg-bubble" id="${bubbleId}"><span class="streaming-cursor"></span></div>
     </div>
     <div class="msg-meta">${timestamp}</div>
   `;
-
   messageArea.appendChild(group);
   scrollToBottom();
   return bubbleId;
 }
 
-// ── Append static message bubble (User messages) ─────────
 function appendMessage(role, text, isError = false) {
   const isUser = role === 'user';
-
   const group = document.createElement('div');
   group.className = `msg-group ${isUser ? 'user-group' : 'ai-group'}`;
-
   const avatarLabel = isUser ? 'U' : 'H';
   const bubbleContent = isUser ? escapeHtml(text) : renderMarkdown(text);
   const timestamp = new Date().toLocaleTimeString('vi-VN', { hour: '2-digit', minute: '2-digit' });
-
   group.innerHTML = `
     <div class="msg msg-${isUser ? 'user' : 'ai'}">
       <div class="msg-avatar" aria-hidden="true">${avatarLabel}</div>
-      <div class="msg-bubble${isError ? ' msg-error' : ''}">
-        ${bubbleContent}
-      </div>
+      <div class="msg-bubble${isError ? ' msg-error' : ''}">${bubbleContent}</div>
     </div>
     <div class="msg-meta">${timestamp}</div>
   `;
-
   messageArea.appendChild(group);
   scrollToBottom();
 }
@@ -305,7 +458,7 @@ function appendMessage(role, text, isError = false) {
 function appendToolTags(bubbleElement, tools) {
   const toolTagsDiv = document.createElement('div');
   toolTagsDiv.className = 'tool-tags';
-  tools.forEach(tool => {
+  tools.forEach((tool) => {
     const span = document.createElement('span');
     span.className = 'tool-tag';
     span.textContent = tool;
@@ -314,58 +467,174 @@ function appendToolTags(bubbleElement, tools) {
   bubbleElement.appendChild(toolTagsDiv);
 }
 
-// ── Update Workspace panel state ─────────────────────────
+// ── Update Workspace panel ─────────────────────────────────
 function updateWorkspaceUI() {
   if (!currentPlan) {
     workspacePanel.style.display = 'none';
     return;
   }
 
-  // Show panel
   workspacePanel.style.display = 'flex';
 
-  // Badge status
-  planStatusBadge.className = `plan-status-badge ${currentPlan.status}`;
-  planStatusBadge.textContent = currentPlan.status === 'draft' ? 'Nháp' : 'Đã duyệt';
+  const dest = currentPlan.destination || '—';
+  const days = currentPlan.dates?.days || '—';
+  const travelers = currentPlan.travelers || 1;
+  const budget = currentPlan.budget?.total;
 
-  // Fill form fields
-  tripOrigin.value = currentPlan.origin || '';
-  tripDestination.value = currentPlan.destination || '';
-  tripDeparture.value = currentPlan.dates.departure || '';
-  tripDays.value = currentPlan.dates.days || '';
-  tripTravelers.value = currentPlan.travelers || '1';
-  tripComfort.value = currentPlan.comfort_level || 'medium';
-  tripBudget.value = currentPlan.budget.total || '';
+  // Title & Meta
+  wsTripTitle.textContent = dest !== '—' ? `Chuyến đi ${dest}` : 'Kế hoạch mới';
 
-  // Confirm button label & state
-  if (currentPlan.status === 'confirmed') {
-    confirmTripBtn.disabled = true;
-    confirmTripBtn.textContent = 'Đã xác nhận & Đang tìm';
-    confirmTripBtn.style.background = '#22c55e';
+  let metaParts = [];
+  if (days !== '—') metaParts.push(`${days} ngày`);
+  if (travelers) metaParts.push(`${travelers} người`);
+  if (budget) metaParts.push(`${Number(budget).toLocaleString('vi-VN')} VND`);
+  wsTripMeta.textContent = metaParts.join(' · ') || '—';
+
+  // Tags
+  const status = currentPlan.status || 'draft';
+  const riskCount = currentDecision?.risks?.length ?? 0;
+  const totalCost = currentDecision?.cost_estimate?.total_all_people;
+  wsTags.innerHTML = `
+    ${!totalCost ? '<span class="ws-tag no-data">Không có dữ liệu</span>' : `<span class="ws-tag price">${Number(totalCost).toLocaleString('vi-VN')} VND</span>`}
+    ${riskCount > 0 ? `<span class="ws-tag risk">${riskCount} cảnh báo</span>` : ''}
+    <span class="ws-tag ${status === 'confirmed' ? 'confirmed' : 'draft'}">${status === 'confirmed' ? 'Đã duyệt' : 'Bản nháp'}</span>
+  `;
+
+  // KV fields
+  const setKV = (el, val) => {
+    if (val) {
+      el.textContent = val;
+      el.classList.remove('empty');
+    } else {
+      el.textContent = 'Chưa có';
+      el.classList.add('empty');
+    }
+  };
+
+  setKV(kvOrigin, currentPlan.origin || null);
+  setKV(kvDestination, currentPlan.destination || null);
+
+  const dep = currentPlan.dates?.departure;
+  const daysNum = currentPlan.dates?.days;
+  if (dep && daysNum) {
+    try {
+      const end = new Date(dep);
+      end.setDate(end.getDate() + Number(daysNum) - 1);
+      const fmt = (d) => `${d.getDate()}/${d.getMonth() + 1}/${d.getFullYear()}`;
+      const start = new Date(dep);
+      setKV(kvDates, `${fmt(start)} → ${fmt(end)}`);
+    } catch { setKV(kvDates, dep); }
   } else {
-    confirmTripBtn.disabled = false;
-    confirmTripBtn.textContent = 'Xác nhận & Tìm kiếm';
-    confirmTripBtn.style.background = 'linear-gradient(to right, #0ea5e9, #0284c7)';
+    setKV(kvDates, null);
   }
 
-  // Cost estimates
-  if (currentDecision && currentDecision.cost_estimate) {
-    costSection.style.display = 'flex';
+  setKV(kvTravelers, travelers ? `${travelers} người` : null);
+  setKV(kvPreferences, (currentPlan.preferences || []).join(', ') || null);
+
+  const comfortMap = { budget: 'Tiết kiệm nhất', medium: 'Tầm trung', comfort: 'Thoải mái', luxury: 'Cao cấp' };
+  setKV(kvComfort, comfortMap[currentPlan.comfort_level] || currentPlan.comfort_level || null);
+
+  // Fill edit form
+  tripOrigin.value      = currentPlan.origin || '';
+  tripDestination.value = currentPlan.destination || '';
+  tripDeparture.value   = currentPlan.dates?.departure || '';
+  tripDays.value        = currentPlan.dates?.days || '';
+  tripTravelers.value   = currentPlan.travelers || '1';
+  tripComfort.value     = currentPlan.comfort_level || 'medium';
+  tripBudget.value      = currentPlan.budget?.total || '';
+
+  // Update Quick Links
+  const quickLinksSection = $('quickLinksSection');
+  const quickLinksList = $('quickLinksList');
+  if (quickLinksSection && quickLinksList) {
+    if (currentPlan && currentPlan.destination) {
+      quickLinksSection.style.display = 'block';
+      const origin = currentPlan.origin || '';
+      const dest = currentPlan.destination;
+      const dep = currentPlan.dates?.departure || '';
+      
+      let flightQuery = `vé máy bay`;
+      if (origin) flightQuery += ` từ ${origin}`;
+      flightQuery += ` đi ${dest}`;
+      if (dep) flightQuery += ` ngày ${dep}`;
+      const flightUrl = `https://www.google.com/search?q=${encodeURIComponent(flightQuery)}`;
+      
+      const hotelUrl = `https://www.booking.com/searchresults.vi.html?ss=${encodeURIComponent(dest)}`;
+      const agodaUrl = `https://www.agoda.com/vi-vn/pages/agoda/default/DestinationSearchResult.aspx?city=${encodeURIComponent(dest)}`;
+      const klookUrl = `https://www.klook.com/vi/search/result/?keyword=${encodeURIComponent(dest)}`;
+      const mapsUrl = `https://www.google.com/maps/search/${encodeURIComponent(dest + ' địa điểm du lịch')}`;
+      
+      quickLinksList.innerHTML = `
+        <a href="${flightUrl}" target="_blank" rel="noopener noreferrer" class="quick-link-item">
+          <span class="quick-link-icon">✈</span>
+          <span>Tìm vé máy bay trên Google</span>
+        </a>
+        <a href="${agodaUrl}" target="_blank" rel="noopener noreferrer" class="quick-link-item">
+          <span class="quick-link-icon">🏨</span>
+          <span>Tìm khách sạn trên Agoda</span>
+        </a>
+        <a href="${hotelUrl}" target="_blank" rel="noopener noreferrer" class="quick-link-item">
+          <span class="quick-link-icon">⭐</span>
+          <span>Đặt phòng trên Booking.com</span>
+        </a>
+        <a href="${klookUrl}" target="_blank" rel="noopener noreferrer" class="quick-link-item">
+          <span class="quick-link-icon">🎟</span>
+          <span>Mua vé vui chơi & tour trên Klook</span>
+        </a>
+        <a href="${mapsUrl}" target="_blank" rel="noopener noreferrer" class="quick-link-item">
+          <span class="quick-link-icon">🗺</span>
+          <span>Xem bản đồ du lịch Google Maps</span>
+        </a>
+      `;
+    } else {
+      quickLinksSection.style.display = 'none';
+    }
+  }
+
+  // Confirm button
+  const exportHeaderBtn = $('exportHeaderBtn');
+  if (exportHeaderBtn) exportHeaderBtn.style.display = 'flex';
+
+  if (status === 'confirmed') {
+    confirmTripBtn.disabled = true;
+    confirmTripBtn.textContent = '✓ Đã xác nhận & Đang tìm kiếm';
+    confirmTripBtn.style.background = 'var(--success)';
+    reasonSection.style.display = 'none';
+  } else {
+    confirmTripBtn.disabled = false;
+    confirmTripBtn.textContent = 'Xác nhận kế hoạch';
+    confirmTripBtn.style.background = '';
+
+    // Reason box
+    if (!totalCost) {
+      reasonSection.style.display = 'block';
+      reasonText.textContent = 'Không có dữ liệu chuyến bay.';
+      reasonBox.className = 'reason-box';
+    } else if (currentDecision?.cost_estimate?.budget_gap < 0) {
+      reasonSection.style.display = 'block';
+      reasonText.textContent = `Ngân sách thiếu ~${Number(Math.abs(currentDecision.cost_estimate.budget_gap)).toLocaleString('vi-VN')} VND.`;
+      reasonBox.className = 'reason-box';
+    } else {
+      reasonSection.style.display = 'none';
+    }
+  }
+
+  // Cost section
+  if (currentDecision?.cost_estimate) {
+    costSection.style.display = 'block';
     const est = currentDecision.cost_estimate;
     costTotal.textContent = `${Number(est.total_all_people).toLocaleString('vi-VN')} VND`;
     costPerPerson.textContent = `${Number(est.total_per_person).toLocaleString('vi-VN')} VND / người`;
 
-    // Breakdown items
     const b = est.breakdown;
     costBreakdownList.innerHTML = `
-      <div class="breakdown-item"><span>Vé máy bay (người):</span> <span>${Number(b.flight_per_person).toLocaleString('vi-VN')} VND</span></div>
-      <div class="breakdown-item"><span>Khách sạn (đêm):</span> <span>${Number(b.accommodation_per_night).toLocaleString('vi-VN')} VND</span></div>
-      <div class="breakdown-item"><span>Ăn uống (người/ngày):</span> <span>${Number(b.food_per_person_per_day).toLocaleString('vi-VN')} VND</span></div>
-      <div class="breakdown-item"><span>Di chuyển nội địa (tổng):</span> <span>${Number(b.transport_local_total).toLocaleString('vi-VN')} VND</span></div>
-      <div class="breakdown-item"><span>Giải trí/Tham quan (tổng):</span> <span>${Number(b.activities_total).toLocaleString('vi-VN')} VND</span></div>
+      <div class="breakdown-item"><span>Vé máy bay / người</span><span>${Number(b.flight_per_person).toLocaleString('vi-VN')} VND</span></div>
+      <div class="breakdown-item"><span>Khách sạn / đêm</span><span>${Number(b.accommodation_per_night).toLocaleString('vi-VN')} VND</span></div>
+      <div class="breakdown-item"><span>Ăn uống / người / ngày</span><span>${Number(b.food_per_person_per_day).toLocaleString('vi-VN')} VND</span></div>
+      <div class="breakdown-item"><span>Di chuyển nội địa</span><span>${Number(b.transport_local_total).toLocaleString('vi-VN')} VND</span></div>
+      <div class="breakdown-item"><span>Tham quan / giải trí</span><span>${Number(b.activities_total).toLocaleString('vi-VN')} VND</span></div>
     `;
 
-    // Gap comparison
     if (est.budget_provided > 0) {
       costGap.style.display = 'block';
       if (est.budget_gap >= 0) {
@@ -382,29 +651,28 @@ function updateWorkspaceUI() {
     costSection.style.display = 'none';
   }
 
-  // Risks list
-  if (currentDecision && currentDecision.risks && currentDecision.risks.length > 0) {
-    riskSection.style.display = 'flex';
+  // Risk section
+  if (currentDecision?.risks?.length > 0) {
+    riskSection.style.display = 'block';
     riskList.innerHTML = currentDecision.risks.map((risk) => {
-      const riskClass = `risk-${risk.level}`;
       const icon = risk.level === 'high' ? '🔴' : risk.level === 'medium' ? '🟡' : '🟢';
       return `
-        <div class="risk-card ${riskClass}">
+        <div class="risk-card risk-${risk.level}">
           <div class="risk-title">${icon} ${escapeHtml(risk.title)}</div>
           <div class="risk-detail">${escapeHtml(risk.detail)}</div>
           <div class="risk-suggestion">💡 ${escapeHtml(risk.suggestion)}</div>
         </div>
       `;
     }).join('');
-  } else if (currentPlan && currentPlan.status === 'confirmed') {
-    // If confirmed and no risk calculated yet, keep showing or show empty
-    riskSection.style.display = 'none';
   } else {
     riskSection.style.display = 'none';
   }
+
+  // Itinerary section (if plan has itinerary data embedded in context)
+  itinerarySection.style.display = 'none';
 }
 
-// ── Patch TripPlan (HITL) ────────────────────────────────
+// ── Patch TripPlan (HITL) ──────────────────────────────────
 async function patchTripPlan() {
   if (!sessionId) return;
 
@@ -417,78 +685,178 @@ async function patchTripPlan() {
     },
     travelers: parseInt(tripTravelers.value) || 1,
     comfort_level: tripComfort.value,
-    budget: {
-      total: parseFloat(tripBudget.value.replace(/,/g, '')) || null,
-    }
+    budget: { total: parseFloat(tripBudget.value.replace(/,/g, '')) || null },
   };
 
   try {
+    formSaveBtn.textContent = 'Đang lưu...';
+    formSaveBtn.disabled = true;
+
     const res = await fetch(`${API_BASE}/trips/${sessionId}/plan`, {
       method: 'PATCH',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(patchData),
     });
 
-    if (!res.ok) throw new Error("Cập nhật biểu mẫu thất bại.");
+    if (!res.ok) throw new Error('Cập nhật thất bại.');
     const data = await res.json();
-    
-    // Update local plan & decision with new calculations
     currentPlan = data.plan;
     currentDecision = data.decision;
     updateWorkspaceUI();
-    
+
+    // Close form
+    tripEditForm.classList.remove('visible');
+    editPlanBtn.textContent = 'Chỉnh sửa';
   } catch (err) {
-    console.error("Patch error:", err);
+    alert(err.message);
+  } finally {
+    formSaveBtn.textContent = 'Lưu thay đổi';
+    formSaveBtn.disabled = false;
   }
 }
 
-// ── Confirm TripPlan (HITL) ──────────────────────────────
+// ── Confirm TripPlan (HITL) ────────────────────────────────
 async function confirmTripPlan() {
   if (!sessionId) return;
-
   try {
     confirmTripBtn.disabled = true;
     confirmTripBtn.textContent = 'Đang gửi...';
 
-    const res = await fetch(`${API_BASE}/trips/${sessionId}/confirm`, {
-      method: 'POST',
-    });
-
-    if (!res.ok) throw new Error("Không thể xác nhận kế hoạch du lịch.");
+    const res = await fetch(`${API_BASE}/trips/${sessionId}/confirm`, { method: 'POST' });
+    if (!res.ok) throw new Error('Không thể xác nhận kế hoạch.');
     const data = await res.json();
-
-    // Confirm success
     currentPlan = data.plan;
     updateWorkspaceUI();
-
-    // Trigger agent search using SSE chat stream!
     handleSend(data.trigger_message);
-
   } catch (err) {
     alert(err.message);
     confirmTripBtn.disabled = false;
-    confirmTripBtn.textContent = 'Xác nhận & Tìm kiếm';
+    confirmTripBtn.textContent = 'Xác nhận kế hoạch';
   }
 }
 
-// ── Typing indicator / status bar helper ────────────────
-function setLoading(loading) {
+// ── Export Markdown ────────────────────────────────────────
+function exportMarkdown() {
+  if (!currentPlan) return;
+  const dest = currentPlan.destination || 'Chuyến đi';
+  const days = currentPlan.dates?.days || '?';
+  const travelers = currentPlan.travelers || 1;
+  const budget = currentPlan.budget?.total;
+
+  let md = `# Kế hoạch chuyến đi: ${dest}\n\n`;
+  md += `**Thời gian:** ${days} ngày  \n`;
+  md += `**Số người:** ${travelers}  \n`;
+  if (budget) md += `**Ngân sách:** ${Number(budget).toLocaleString('vi-VN')} VND  \n`;
+  md += '\n';
+
+  if (currentDecision?.cost_estimate) {
+    const est = currentDecision.cost_estimate;
+    md += `## Dự toán chi phí\n\n`;
+    md += `- **Tổng chi phí:** ${Number(est.total_all_people).toLocaleString('vi-VN')} VND\n`;
+    md += `- **Chi phí / người:** ${Number(est.total_per_person).toLocaleString('vi-VN')} VND\n\n`;
+  }
+
+  if (currentDecision?.risks?.length > 0) {
+    md += `## Cảnh báo rủi ro\n\n`;
+    currentDecision.risks.forEach((r) => {
+      md += `- **[${r.level.toUpperCase()}] ${r.title}:** ${r.detail}  \n  💡 ${r.suggestion}\n`;
+    });
+    md += '\n';
+  }
+
+  // Add conversation snippets
+  md += `## Lịch sử tư vấn\n\n`;
+  conversationHistory.forEach((msg) => {
+    const label = msg.role === 'user' ? '**Bạn**' : '**Hana**';
+    md += `${label}: ${msg.content}\n\n`;
+  });
+
+  const blob = new Blob([md], { type: 'text/markdown;charset=utf-8' });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = `kehoach-${(currentPlan.destination || 'chuyen-di').toLowerCase().replace(/\s+/g, '-')}.md`;
+  a.click();
+  URL.revokeObjectURL(url);
+}
+
+// ── Loading state ──────────────────────────────────────────
+function setLoading(loading, showIndicator = true) {
   isLoading = loading;
-  typingIndicator.hidden = !loading;
+  typingIndicator.hidden = !loading || !showIndicator;
   if (loading) scrollToBottom();
 }
 
-function updateStatusText(text) {
-  headerSub.textContent = text;
+function renderTableHTML(rows) {
+  if (rows.length < 2) return rows.join('\n');
+  const headers = rows[0].split('|').map(s => s.trim()).filter((s, idx) => idx > 0 && idx < rows[0].split('|').length - 1);
+  const alignments = rows[1].split('|').map(s => s.trim()).filter((s, idx) => idx > 0 && idx < rows[1].split('|').length - 1).map(align => {
+    if (align.startsWith(':') && align.endsWith(':')) return 'center';
+    if (align.endsWith(':')) return 'right';
+    return 'left';
+  });
+
+  let html = '<div style="overflow-x:auto; margin: 10px 0;"><table style="width:100%; border-collapse:collapse; font-size:13px; text-align:left; border: 1px solid var(--border);">';
+  html += '<thead><tr style="background-color: var(--bg-raised); border-bottom: 2px solid var(--border);">';
+  headers.forEach((h, idx) => {
+    const align = alignments[idx] || 'left';
+    html += `<th style="padding: 8px 10px; font-weight: 600; text-align: ${align}; border-right: 1px solid var(--border);">${h}</th>`;
+  });
+  html += '</tr></thead>';
+
+  html += '<tbody>';
+  for (let i = 2; i < rows.length; i++) {
+    const cells = rows[i].split('|').map(s => s.trim()).filter((s, idx) => idx > 0 && idx < rows[i].split('|').length - 1);
+    html += '<tr style="border-bottom: 1px solid var(--border);">';
+    cells.forEach((c, idx) => {
+      const align = alignments[idx] || 'left';
+      html += `<td style="padding: 8px 10px; text-align: ${align}; border-right: 1px solid var(--border);">${c}</td>`;
+    });
+    html += '</tr>';
+  }
+  html += '</tbody></table></div>';
+  return html;
 }
 
-// ── Markdown renderer (lightweight, no deps) ──────────────
+function parseMarkdownTables(text) {
+  const lines = text.split('\n');
+  let inTable = false;
+  let tableRows = [];
+  let output = [];
+
+  for (let i = 0; i < lines.length; i++) {
+    const line = lines[i].trim();
+    if (line.startsWith('|') && line.endsWith('|')) {
+      inTable = true;
+      tableRows.push(line);
+    } else {
+      if (inTable) {
+        output.push(renderTableHTML(tableRows));
+        tableRows = [];
+        inTable = false;
+      }
+      output.push(lines[i]);
+    }
+  }
+  if (inTable && tableRows.length > 0) {
+    output.push(renderTableHTML(tableRows));
+  }
+  return output.join('\n');
+}
+
+// ── Markdown renderer ──────────────────────────────────────
 function renderMarkdown(raw) {
   let html = escapeHtml(raw);
 
-  // Code blocks (``` ... ```)
+  // Convert escaped <br> tags back to HTML
+  html = html.replace(/&lt;br\s*\/?&gt;/gi, '<br>');
+
+  // Parse Markdown tables first
+  html = parseMarkdownTables(html);
+
+  // Code blocks
   html = html.replace(/```[\w]*\n?([\s\S]*?)```/g, (_, code) =>
-    `<pre style="background:var(--bg-raised);border:1px solid var(--border);border-radius:8px;padding:12px 14px;overflow-x:auto;margin:8px 0;font-family:'JetBrains Mono',monospace;font-size:12.5px;line-height:1.6">${code.trim()}</pre>`
+    `<pre style="background:var(--bg-base);border:1px solid var(--border);border-radius:8px;padding:10px 12px;overflow-x:auto;margin:8px 0;font-family:'JetBrains Mono',monospace;font-size:12px;line-height:1.6">${code.trim()}</pre>`
   );
 
   // Inline code
@@ -500,18 +868,14 @@ function renderMarkdown(raw) {
   // Italic
   html = html.replace(/\*(.+?)\*/g, '<em>$1</em>');
 
-  // H3
+  // Headings
   html = html.replace(/^### (.+)$/gm, '<h3>$1</h3>');
-  // H2
   html = html.replace(/^## (.+)$/gm, '<h2>$1</h2>');
-  // H1
   html = html.replace(/^# (.+)$/gm, '<h1>$1</h1>');
 
-  // Unordered list items
+  // Lists
   html = html.replace(/^[-*•] (.+)$/gm, '<li>$1</li>');
   html = html.replace(/(<li>.*<\/li>\n?)+/gs, (match) => `<ul>${match}</ul>`);
-
-  // Ordered list items
   html = html.replace(/^\d+\. (.+)$/gm, '<li>$1</li>');
 
   // Links
@@ -522,20 +886,16 @@ function renderMarkdown(raw) {
   // Horizontal rule
   html = html.replace(/^---+$/gm, '<hr style="border:none;border-top:1px solid var(--border);margin:10px 0">');
 
-  // Paragraphs (double newlines)
+  // Paragraphs
   html = html.replace(/\n{2,}/g, '</p><p>');
   html = `<p>${html}</p>`;
-
-  // Single newlines → <br>
   html = html.replace(/([^>])\n([^<])/g, '$1<br>$2');
-
-  // Clean empty tags
   html = html.replace(/<p>\s*<\/p>/g, '');
 
   return html;
 }
 
-// ── Helpers ───────────────────────────────────────────────
+// ── Helpers ────────────────────────────────────────────────
 function escapeHtml(str) {
   return String(str)
     .replace(/&/g, '&amp;')
@@ -546,9 +906,7 @@ function escapeHtml(str) {
 }
 
 function scrollToBottom() {
-  requestAnimationFrame(() => {
-    messageArea.scrollTop = messageArea.scrollHeight;
-  });
+  requestAnimationFrame(() => { messageArea.scrollTop = messageArea.scrollHeight; });
 }
 
 function autoResize() {
@@ -556,35 +914,10 @@ function autoResize() {
   msgInput.style.height = Math.min(msgInput.scrollHeight, 160) + 'px';
 }
 
-function updateCharCount() {
-  const len = msgInput.value.length;
-  charCount.textContent = `${len}/2000`;
-  charCount.className = 'char-count' +
-    (len > 1800 ? ' max' : len > 1500 ? ' warn' : '');
-}
-
-function clearConversation() {
-  conversationHistory = [];
-  sessionId = null;
-  currentPlan = null;
-  currentDecision = null;
-
-  // Remove all message groups
-  const groups = messageArea.querySelectorAll('.msg-group, .msg-group.user-group');
-  groups.forEach((g) => g.remove());
-
-  // Show welcome state again
-  if (welcomeState) welcomeState.style.display = '';
-
-  // Hide workspace
-  updateWorkspaceUI();
-}
-
-// ── Sidebar (mobile) ──────────────────────────────────────
+// ── Sidebar (mobile) ───────────────────────────────────────
 function toggleSidebar() {
   const isOpen = sidebar.classList.toggle('open');
   if (isOpen) {
-    // Add overlay
     const overlay = document.createElement('div');
     overlay.id = 'sidebarOverlay';
     overlay.style.display = 'block';

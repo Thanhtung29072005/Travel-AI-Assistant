@@ -3,81 +3,76 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>Hana – Travel AI Assistant</title>
-  <meta name="description" content="Hana – Trợ lý du lịch AI thông minh powered by Google Gemini. Lên kế hoạch chuyến đi, tính ngân sách, tìm điểm đến." />
-
-  <!-- Fonts: Outfit (display) + JetBrains Mono (code/tool badges) -->
+  <title>Travel AI Assistant – Lên kế hoạch du lịch thông minh</title>
+  <meta name="description" content="Trợ lý du lịch AI thông minh powered by Google Gemini. Lên kế hoạch chuyến đi, tính ngân sách, tìm điểm đến tại Việt Nam." />
+  <!-- Google Fonts -->
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
-  <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet" />
-
-  <link rel="stylesheet" href="/static/css/style.css" />
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="/static/css/style.css?v=7" />
 </head>
 <body>
 
-  <!-- ── App Shell ─────────────────────────────────────────── -->
+  <!-- ── App Shell ─────────────────────────────────── -->
   <div id="app">
 
-    <!-- Sidebar -->
+    <!-- ══════════════════════════════════════════════
+         SIDEBAR
+    ══════════════════════════════════════════════ -->
     <aside id="sidebar">
-      <div class="sidebar-header">
-        <div class="logo">
-          <svg viewBox="0 0 32 32" fill="none" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
-            <circle cx="16" cy="16" r="15" stroke="url(#logoGrad)" stroke-width="2"/>
-            <path d="M10 22 L16 8 L22 22 M12.5 17.5 h7" stroke="url(#logoGrad)" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
-            <defs>
-              <linearGradient id="logoGrad" x1="0" y1="0" x2="32" y2="32" gradientUnits="userSpaceOnUse">
-                <stop offset="0%" stop-color="#38bdf8"/>
-                <stop offset="100%" stop-color="#0ea5e9"/>
-              </linearGradient>
-            </defs>
+
+      <!-- Brand -->
+      <div class="sidebar-brand">
+        <div class="brand-icon">
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+            <path d="M3 12a9 9 0 1 0 18 0 9 9 0 0 0-18 0"/>
+            <path d="M12 2v4M12 18v4M4.93 4.93l2.83 2.83M16.24 16.24l2.83 2.83"/>
           </svg>
-          <span>Hana</span>
         </div>
-        <p class="logo-tagline">Travel AI Assistant</p>
-      </div>
-
-      <div class="sidebar-section">
-        <p class="sidebar-label">Gợi ý nhanh</p>
-        <ul class="suggestion-list" id="suggestionList">
-          <li><button class="suggestion-chip" data-msg="Tôi muốn đi du lịch Đà Nẵng 3 ngày, ngân sách 5 triệu. Gợi ý lịch trình?">
-            <span class="chip-icon">✈</span> Lịch trình Đà Nẵng 3N
-          </button></li>
-          <li><button class="suggestion-chip" data-msg="Tháng 3 nên đi du lịch ở đâu ở Việt Nam?">
-            <span class="chip-icon">🗓</span> Tháng 3 đi đâu đẹp?
-          </button></li>
-          <li><button class="suggestion-chip" data-msg="Lên kế hoạch đi Phú Quốc 5 ngày cho cặp đôi, budget tầm 10 triệu">
-            <span class="chip-icon">🏝</span> Phú Quốc cho cặp đôi
-          </button></li>
-          <li><button class="suggestion-chip" data-msg="Các điểm du lịch nổi tiếng ở miền Bắc Việt Nam?">
-            <span class="chip-icon">🏔</span> Điểm đến miền Bắc
-          </button></li>
-          <li><button class="suggestion-chip" data-msg="Chi phí di chuyển và ăn ở tại Hội An trong 2 ngày hết bao nhiêu?">
-            <span class="chip-icon">💰</span> Chi phí Hội An 2N
-          </button></li>
-        </ul>
-      </div>
-
-      <div class="sidebar-section sidebar-info">
-        <p class="sidebar-label">Trạng thái</p>
-        <div class="status-row" id="statusRow">
-          <span class="status-dot" id="statusDot"></span>
-          <span id="statusText">Đang kết nối…</span>
+        <div class="brand-text">
+          <div class="brand-name">Travel AI</div>
+          <div class="brand-sub">Vietnam Premium</div>
         </div>
-        <div class="model-badge" id="modelBadge">—</div>
       </div>
 
+      <!-- New Chat Button -->
+      <button class="new-chat-btn" id="newChatBtn">
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round">
+          <path d="M12 5v14M5 12h14"/>
+        </svg>
+        Chuyến đi mới
+      </button>
+
+      <!-- History Label -->
+      <div class="sidebar-section-label">GẦN ĐÂY</div>
+
+      <!-- History List -->
+      <div class="history-list" id="historyList">
+        <!-- Filled dynamically by JS -->
+      </div>
+
+      <!-- Footer -->
       <div class="sidebar-footer">
-        <button id="clearBtn" class="clear-btn" title="Xóa lịch sử chat">
-          <svg viewBox="0 0 16 16" fill="none" xmlns="http://www.w3.org/2000/svg" width="14" height="14">
-            <path d="M2 4h12M6 4V2.5a.5.5 0 0 1 .5-.5h3a.5.5 0 0 1 .5.5V4M5 4l.5 9h5L11 4" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round"/>
+        <button class="sidebar-footer-btn" id="settingsBtn">
+          <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round">
+            <circle cx="12" cy="12" r="3"/>
+            <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/>
           </svg>
-          Xóa cuộc trò chuyện
+          Cài đặt
+        </button>
+        <button class="sidebar-footer-btn" id="helpBtn">
+          <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round">
+            <circle cx="12" cy="12" r="10"/>
+            <path d="M9.09 9a3 3 0 0 1 5.83 1c0 2-3 3-3 3M12 17h.01"/>
+          </svg>
+          Trợ giúp
         </button>
       </div>
     </aside>
 
-    <!-- Main Chat Area -->
+    <!-- ══════════════════════════════════════════════
+         MAIN CHAT AREA
+    ══════════════════════════════════════════════ -->
     <main id="chatMain">
 
       <!-- Header -->
@@ -87,18 +82,23 @@
             <path d="M1 1h16M1 7h10M1 13h16" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/>
           </svg>
         </button>
+
         <div class="header-title">
-          <span class="header-name">Hana</span>
-          <span class="header-sub" id="headerSub">Trợ lý du lịch AI</span>
+          <div class="header-name" id="headerName">Lập kế hoạch chuyến đi</div>
+          <div class="header-sub" id="headerSub">Trợ lý du lịch AI</div>
         </div>
+
         <div class="header-actions">
-          <span class="search-badge" id="searchBadge" title="Tìm kiếm web">
-            <svg viewBox="0 0 16 16" fill="none" width="12" height="12">
-              <circle cx="6.5" cy="6.5" r="4.5" stroke="currentColor" stroke-width="1.4"/>
-              <path d="m10 10 3 3" stroke="currentColor" stroke-width="1.4" stroke-linecap="round"/>
+          <button class="header-icon-btn" id="exportHeaderBtn" title="Xuất kế hoạch" style="display:none">
+            <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round">
+              <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4M7 10l5 5 5-5M12 15V3"/>
             </svg>
-            Web Search
-          </span>
+          </button>
+          <button class="header-icon-btn" id="moreHeaderBtn" title="Thêm tùy chọn">
+            <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round">
+              <circle cx="12" cy="5" r="1"/><circle cx="12" cy="12" r="1"/><circle cx="12" cy="19" r="1"/>
+            </svg>
+          </button>
         </div>
       </header>
 
@@ -107,14 +107,20 @@
         <!-- Welcome state -->
         <div id="welcomeState">
           <div class="welcome-hero">
-            <div class="welcome-orb" aria-hidden="true"></div>
-            <h1>Xin chào, tôi là <em>Hana</em></h1>
-            <p>Trợ lý du lịch AI của bạn. Hỏi tôi về lịch trình, ngân sách, địa điểm — bất cứ điều gì về chuyến đi.</p>
+            <div class="welcome-avatar">H</div>
+            <h1>Xin chào! Tôi là <em>Hana</em></h1>
+            <p>Trợ lý du lịch AI của bạn. Hãy cho tôi biết bạn muốn đi đâu, khi nào, và ngân sách bao nhiêu – tôi sẽ lập kế hoạch chi tiết cho bạn!</p>
+            <div class="welcome-chips">
+              <button class="welcome-chip" data-msg="Tôi muốn đi Phú Quốc 3 ngày cho 2 người, ngân sách 10 triệu">🏝 Phú Quốc 3 ngày</button>
+              <button class="welcome-chip" data-msg="Lên kế hoạch đi Đà Nẵng 4 ngày, budget 8 triệu">🌊 Đà Nẵng 4 ngày</button>
+              <button class="welcome-chip" data-msg="Tháng 3 nên đi đâu ở Việt Nam?">🗓 Tháng 3 đi đâu đẹp?</button>
+              <button class="welcome-chip" data-msg="Chi phí đi Hội An 2 ngày hết bao nhiêu?">💰 Chi phí Hội An 2N</button>
+            </div>
           </div>
         </div>
       </div>
 
-      <!-- Typing indicator (hidden by default) -->
+      <!-- Typing indicator -->
       <div id="typingIndicator" class="typing-wrap" hidden>
         <div class="msg msg-ai">
           <div class="msg-avatar" aria-hidden="true">H</div>
@@ -128,18 +134,30 @@
       <div id="inputArea">
         <form id="chatForm" autocomplete="off">
           <div class="input-wrap">
+            <div class="input-left-actions">
+              <button type="button" class="input-icon-btn" title="Thêm file/ảnh" id="attachBtn">
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round">
+                  <path d="M21.44 11.05l-9.19 9.19a6 6 0 0 1-8.49-8.49l9.19-9.19a4 4 0 0 1 5.66 5.66l-9.2 9.19a2 2 0 0 1-2.83-2.83l8.49-8.48"/>
+                </svg>
+              </button>
+              <button type="button" class="input-icon-btn" title="Vị trí" id="locationBtn">
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round">
+                  <path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z"/>
+                  <circle cx="12" cy="10" r="3"/>
+                </svg>
+              </button>
+            </div>
             <textarea
               id="msgInput"
               rows="1"
-              placeholder="Hỏi tôi về chuyến đi của bạn…"
+              placeholder="Mô tả điểm đến, ngày đi, ngân sách..."
               aria-label="Nhập câu hỏi du lịch"
               maxlength="2000"
             ></textarea>
             <div class="input-actions">
-              <span class="char-count" id="charCount">0/2000</span>
               <button type="submit" id="sendBtn" aria-label="Gửi tin nhắn" disabled>
-                <svg viewBox="0 0 20 20" fill="none" xmlns="http://www.w3.org/2000/svg" width="18" height="18">
-                  <path d="M4 10h12M11 5l5 5-5 5" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/>
+                <svg viewBox="0 0 20 20" fill="none" xmlns="http://www.w3.org/2000/svg" width="16" height="16">
+                  <path d="M4 10h12M11 5l5 5-5 5" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
                 </svg>
               </button>
             </div>
@@ -150,95 +168,162 @@
 
     </main>
 
-    <!-- Workspace Panel (Phase 4 HITL UI) -->
+    <!-- ══════════════════════════════════════════════
+         WORKSPACE PANEL (Right)
+    ══════════════════════════════════════════════ -->
     <aside id="workspacePanel" class="workspace-panel" style="display: none;">
-      <div class="workspace-header">
-        <h2>Kế hoạch của bạn</h2>
-        <span class="plan-status-badge draft" id="planStatusBadge">Draft</span>
-      </div>
-      
-      <div class="workspace-body">
-        <!-- Form chỉnh sửa (HITL) -->
-        <div class="workspace-section">
-          <h3 class="section-title">Thông tin chuyến đi</h3>
-          <form id="tripForm" class="trip-form" onsubmit="event.preventDefault();">
-            <div class="form-row">
-              <div class="form-group">
-                <label for="tripOrigin">Điểm khởi hành</label>
-                <input type="text" id="tripOrigin" placeholder="Ví dụ: Hà Nội" />
-              </div>
-              <div class="form-group">
-                <label for="tripDestination">Điểm đến</label>
-                <input type="text" id="tripDestination" placeholder="Ví dụ: Đà Nẵng" required />
-              </div>
-            </div>
-            
-            <div class="form-row">
-              <div class="form-group">
-                <label for="tripDeparture">Ngày đi (YYYY-MM-DD)</label>
-                <input type="text" id="tripDeparture" placeholder="2026-08-10" />
-              </div>
-              <div class="form-group">
-                <label for="tripDays">Số ngày</label>
-                <input type="number" id="tripDays" min="1" max="30" value="3" />
-              </div>
-            </div>
-            
-            <div class="form-row">
-              <div class="form-group">
-                <label for="tripTravelers">Số người đi</label>
-                <input type="number" id="tripTravelers" min="1" max="20" value="1" />
-              </div>
-              <div class="form-group">
-                <label for="tripComfort">Mức dịch vụ</label>
-                <select id="tripComfort">
-                  <option value="budget">Tiết kiệm</option>
-                  <option value="medium" selected>Tầm trung</option>
-                  <option value="comfort">Thoải mái</option>
-                  <option value="luxury">Cao cấp</option>
-                </select>
-              </div>
-            </div>
-            
-            <div class="form-row">
-              <div class="form-group full-width">
-                <label for="tripBudget">Ngân sách dự tính (VND)</label>
-                <input type="text" id="tripBudget" placeholder="Ví dụ: 10000000" />
-              </div>
-            </div>
-          </form>
-        </div>
-        
-        <!-- Dự toán chi phí (Cost Estimate) -->
-        <div class="workspace-section" id="costSection" style="display: none;">
-          <h3 class="section-title">Báo cáo dự toán</h3>
-          <div class="cost-card">
-            <div class="cost-total" id="costTotal">0 VND</div>
-            <div class="cost-per-person" id="costPerPerson">0 VND / người</div>
-            <div class="cost-breakdown-list" id="costBreakdownList">
-              <!-- Chèn chi tiết chi phí qua JS -->
-            </div>
-            <div class="cost-gap" id="costGap"></div>
-          </div>
-        </div>
-        
-        <!-- Thẩm định rủi ro (Risk Warnings) -->
-        <div class="workspace-section" id="riskSection" style="display: none;">
-          <h3 class="section-title">Thẩm định rủi ro</h3>
-          <div class="risk-list" id="riskList">
-            <!-- Chèn rủi ro qua JS -->
-          </div>
-        </div>
-      </div>
-      
-      <div class="workspace-footer">
-        <button id="confirmTripBtn" class="confirm-trip-btn">
-          Xác nhận & Tìm kiếm
-        </button>
-      </div>
-    </aside>
-  </div>
 
-  <script src="/static/js/app.js"></script>
+      <!-- Workspace Header -->
+      <div class="workspace-header">
+        <div class="workspace-trip-title" id="wsTripTitle">Chuyến đi mới</div>
+        <div class="workspace-trip-meta" id="wsTripMeta">
+          <span>—</span>
+        </div>
+        <div class="workspace-tags" id="wsTags"></div>
+      </div>
+
+      <!-- Scrollable Body -->
+      <div class="workspace-body" id="wsBody">
+
+        <!-- Plan Key-Value Info -->
+        <div class="plan-info-section" id="planInfoSection">
+          <div class="plan-info-header">
+            <span class="plan-info-title">Bản nháp kế hoạch</span>
+            <button class="plan-edit-btn" id="editPlanBtn">Chỉnh sửa</button>
+          </div>
+          <div class="plan-kv-list" id="planKvList">
+            <div class="plan-kv-item">
+              <span class="plan-kv-label">Điểm đi</span>
+              <span class="plan-kv-value empty" id="kvOrigin">Chưa có</span>
+            </div>
+            <div class="plan-kv-item">
+              <span class="plan-kv-label">Điểm đến</span>
+              <span class="plan-kv-value empty" id="kvDestination">Chưa có</span>
+            </div>
+            <div class="plan-kv-item">
+              <span class="plan-kv-label">Thời gian</span>
+              <span class="plan-kv-value empty" id="kvDates">Chưa có</span>
+            </div>
+            <div class="plan-kv-item">
+              <span class="plan-kv-label">Số người</span>
+              <span class="plan-kv-value empty" id="kvTravelers">—</span>
+            </div>
+            <div class="plan-kv-item">
+              <span class="plan-kv-label">Sở thích</span>
+              <span class="plan-kv-value empty" id="kvPreferences">Chưa có</span>
+            </div>
+            <div class="plan-kv-item">
+              <span class="plan-kv-label">Ưu tiên</span>
+              <span class="plan-kv-value empty" id="kvComfort">Chưa có</span>
+            </div>
+          </div>
+        </div>
+
+        <!-- Quick Links Section -->
+        <div class="plan-info-section" id="quickLinksSection" style="display:none">
+          <div class="plan-info-header" style="margin-bottom: 8px;">
+            <span class="plan-info-title">Đặt dịch vụ nhanh</span>
+          </div>
+          <div style="display: flex; flex-direction: column; gap: 8px;" id="quickLinksList">
+          </div>
+        </div>
+
+        <!-- Inline Edit Form (hidden by default) -->
+        <div class="trip-edit-form" id="tripEditForm">
+          <div class="form-row">
+            <div class="form-group">
+              <label for="tripOrigin">Điểm khởi hành</label>
+              <input type="text" id="tripOrigin" placeholder="Hà Nội" />
+            </div>
+            <div class="form-group">
+              <label for="tripDestination">Điểm đến</label>
+              <input type="text" id="tripDestination" placeholder="Phú Quốc" />
+            </div>
+          </div>
+          <div class="form-row">
+            <div class="form-group">
+              <label for="tripDeparture">Ngày đi</label>
+              <input type="text" id="tripDeparture" placeholder="2026-08-10" />
+            </div>
+            <div class="form-group">
+              <label for="tripDays">Số ngày</label>
+              <input type="number" id="tripDays" min="1" max="30" value="3" />
+            </div>
+          </div>
+          <div class="form-row">
+            <div class="form-group">
+              <label for="tripTravelers">Số người</label>
+              <input type="number" id="tripTravelers" min="1" max="20" value="1" />
+            </div>
+            <div class="form-group">
+              <label for="tripComfort">Mức dịch vụ</label>
+              <select id="tripComfort">
+                <option value="budget">Tiết kiệm</option>
+                <option value="medium" selected>Tầm trung</option>
+                <option value="comfort">Thoải mái</option>
+                <option value="luxury">Cao cấp</option>
+              </select>
+            </div>
+          </div>
+          <div class="form-row">
+            <div class="form-group full-width">
+              <label for="tripBudget">Ngân sách (VND)</label>
+              <input type="text" id="tripBudget" placeholder="10000000" />
+            </div>
+          </div>
+          <button class="form-save-btn" id="formSaveBtn">Lưu thay đổi</button>
+        </div>
+
+        <!-- Reason/Recommendation Box -->
+        <div class="reason-section" id="reasonSection">
+          <div class="reason-label">Lý do chưa thể khuyến nghị</div>
+          <div class="reason-box" id="reasonBox">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" style="flex-shrink:0;margin-top:1px">
+              <path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/>
+            </svg>
+            <span id="reasonText">Không có dữ liệu chuyến bay.</span>
+          </div>
+        </div>
+
+        <!-- Cost Section -->
+        <div class="cost-section" id="costSection" style="display:none">
+          <div class="cost-section-title">Dự toán chi phí</div>
+          <div class="cost-summary">
+            <div class="cost-total-label">Tổng chi phí dự kiến</div>
+            <div class="cost-total-value" id="costTotal">0 VND</div>
+            <div class="cost-per-person" id="costPerPerson">0 VND / người</div>
+          </div>
+          <div class="cost-breakdown-list" id="costBreakdownList"></div>
+          <div class="cost-gap" id="costGap" style="display:none"></div>
+        </div>
+
+        <!-- Risk Section -->
+        <div class="risk-section" id="riskSection" style="display:none">
+          <div class="risk-section-title">Cảnh báo rủi ro</div>
+          <div id="riskList"></div>
+        </div>
+
+        <!-- Itinerary Timeline -->
+        <div class="itinerary-section" id="itinerarySection" style="display:none">
+          <div class="itinerary-section-title">Lịch trình theo ngày</div>
+          <div id="itineraryList"></div>
+        </div>
+
+      </div>
+
+      <!-- Workspace Footer -->
+      <div class="workspace-footer">
+        <button class="confirm-trip-btn" id="confirmTripBtn">Xác nhận kế hoạch</button>
+        <div class="workspace-secondary-actions">
+          <button class="ws-action-btn" id="exportMdBtn">Xuất Markdown</button>
+          <button class="ws-action-btn" id="exportPdfBtn">Xuất PDF / In</button>
+        </div>
+      </div>
+
+    </aside>
+
+  </div><!-- /#app -->
+
+  <script src="/static/js/app.js?v=7"></script>
 </body>
 </html>

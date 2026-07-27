@@ -25,6 +25,7 @@ async def lifespan(app: FastAPI):
     """Khởi động và tắt ứng dụng"""
     print(f"Starting {settings.app_name} v{settings.app_version}...")
     print(f"AI Model: {settings.gemini_model}")
+    print(f"SQL Server Settings: host={settings.sql_server or settings.sql_server_host}, port={settings.sql_server_port}, database={settings.sql_server_database}, user={settings.sql_username or settings.sql_server_user}")
     print(f"Frontend: http://{settings.host}:{settings.port}/")
     yield
     print("Server shutting down...")

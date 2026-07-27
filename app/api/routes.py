@@ -167,6 +167,14 @@ async def chat(request: ChatRequest):
         ]
         response_text = _extract_text(ai_messages[-1].content) if ai_messages else "(Không có phản hồi)"
 
+        # Lưu lịch sử cuộc hội thoại vào SQL Server
+        updated_history = []
+        for msg in (request.conversation_history or []):
+            updated_history.append({"role": msg.role.value, "content": msg.content})
+        updated_history.append({"role": "user", "content": request.message})
+        updated_history.append({"role": "assistant", "content": response_text})
+        store.save_history(session_id, updated_history)
+
         return ChatResponse(
             response=response_text,
             session_id=session_id,
@@ -264,6 +272,22 @@ async def chat_stream(request: ChatRequest):
 
             # 5. Xử lý lưu trữ sau khi graph chạy xong hoàn toàn
             if final_state:
+                # Trích xuất và lưu lịch sử cuộc hội thoại vào SQL Server
+                ai_messages = [
+                    m for m in final_state.get("messages", [])
+                    if isinstance(m, AIMessage) and m.content
+                ]
+                response_text = _extract_text(ai_messages[-1].content) if ai_messages else ""
+                
+                updated_history = []
+                for msg in (request.conversation_history or []):
+                    updated_history.append({"role": msg.role.value, "content": msg.content})
+                updated_history.append({"role": "user", "content": request.message})
+                if response_text:
+                    updated_history.append({"role": "assistant", "content": response_text})
+                
+                store.save_history(session_id, updated_history)
+
                 plan: TripPlan = final_state.get("trip_plan")
                 if plan:
                     _update_decision_report(session_id, plan, final_state.get("travel_context", {}))
@@ -299,6 +323,7 @@ async def get_trip(session_id: str):
         "plan": _to_serializable(state.trip_plan),
         "decision": _to_serializable(state.decision),
         "status": state.trip_plan.status if state.trip_plan else "empty",
+        "history": state.conversation_history,
     }
 
 

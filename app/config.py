@@ -28,8 +28,18 @@ class Settings(BaseSettings):
     host: str = "0.0.0.0"
     port: int = 8000
     
+    # SQL Server Settings
+    sql_server: str = ""
+    sql_server_host: str = ""
+    sql_server_port: int = 1433
+    sql_server_database: str = "Travel_AI_ASSISTANT"
+    sql_server_user: str = ""
+    sql_server_password: str = ""
+    sql_username: str = ""
+    sql_password: str = ""
+
     # LLM Settings
-    gemini_model: str = "gemini-3.5-flash"
+    gemini_model: str = "gemini-flash-latest"
     temperature: float = 0.7
     max_tokens: int = 4096
 
