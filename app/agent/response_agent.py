@@ -32,6 +32,14 @@ Mục tiêu KHÔNG phải là chatbot du lịch chung chung — mà là trợ l�
 - Khi có TripPlan (xem dưới đây): dùng nó làm nền tảng cho mọi câu trả lời.
 - **Quy tắc HITL**: Nếu trạng thái kế hoạch là 'draft' (nháp), hãy liệt kê tóm tắt ngắn gọn và nhắc người dùng xem qua biểu mẫu ở bảng bên phải để kiểm tra thông tin, sau đó bấm nút "Xác nhận & Tìm kiếm" để bắt đầu tìm thông tin chi tiết. Tránh gọi các tool tìm kiếm (như search_travel_info hay evaluate_trip_feasibility) cho đến khi trạng thái chuyển sang 'confirmed'.
 - Trình bày lịch trình rõ ràng, có timeline và chi phí ước tính từng mục
+
+## Quy tắc an toàn & Giới hạn phạm vi (Guardrails):
+- Bạn là trợ lý chuyên biệt về DU LỊCH.
+- KHÔNG trả lời các câu hỏi không liên quan đến du lịch (như viết code/lập trình, giải toán/học tập, tư vấn luật pháp, y tế, chính trị, viết văn phi du lịch...).
+- Nếu người dùng gửi yêu cầu ngoài phạm vi du lịch, bạn BẮT BUỘC phải từ chối lịch sự bằng câu trả lời chính xác sau:
+  "Mình là trợ lý du lịch. Mình có thể giúp bạn lên lịch trình, tìm vé, khách sạn, thời tiết và thông tin điểm đến."
+- Không giải thích thêm, không thực hiện yêu cầu ngoài phạm vi đó.
+- Nếu người dùng chào hỏi bình thường hoặc chitchat xã giao, hãy trả lời cực kỳ ngắn gọn và hướng họ vào việc lên kế hoạch du lịch.
 """
 
 def agent_node(state: TravelAgentState) -> TravelAgentState:
@@ -78,12 +86,28 @@ def agent_node(state: TravelAgentState) -> TravelAgentState:
     if travel_context.get("hotels"):
         hotels_list = "\n".join([f"  {h}" for h in travel_context["hotels"]])
         context_str += f"\n### Các khách sạn đề xuất:\n{hotels_list}\n"
+    if travel_context.get("provider_sources"):
+        source_lines = []
+        for category, metadata in travel_context["provider_sources"].items():
+            mode = metadata.get("data_mode", "unknown")
+            provider = metadata.get("provider", "unknown provider")
+            fallback = metadata.get("fallback_reason")
+            line = f"- {category}: {provider} ({mode})"
+            if fallback:
+                line += f"; fallback reason: {fallback}"
+            source_lines.append(line)
+        context_str += "\n### Data provenance:\n" + "\n".join(source_lines) + "\n"
     if travel_context.get("cost_feasibility"):
         context_str += f"\n### Dữ liệu Thẩm định Chi phí & Rủi ro:\n{travel_context['cost_feasibility']}\n"
     if travel_context.get("itinerary"):
         context_str += f"\n### Gợi ý Lịch trình chi tiết:\n{travel_context['itinerary']}\n"
 
     if context_str:
+        system_content += (
+            "\nNever present fixture data as a real-time price. When provider "
+            "provenance is available, state the source and whether it is live "
+            "or a fixture in the final recommendation."
+        )
         system_content += (
             f"\n\n---\n## DỮ LIỆU ĐÃ THU THẬP ĐƯỢC TỪ CÁC AGENT CHUYÊN TRÁCH:\n{context_str}\n---\n"
             "Nhiệm vụ của bạn: Hãy tổng hợp toàn bộ dữ liệu trên thành một câu trả lời hoàn chỉnh, "

@@ -24,10 +24,10 @@ from app.models.schemas import (
     HealthResponse, ErrorResponse, Message,
 )
 from app.models.trip_plan import TripPlan, TripStatus
-from app.agent.graph import get_agent
+from app.agent.graph import get_agent, run_graph_call, stream_graph_events
 from app.agent.state import TravelAgentState
 from app.services.search import get_search_service
-from app.services.session_store import get_session_store
+from app.services.session_store import deserialize_decision_report, get_session_store
 from app.services.calculator import get_decision_engine
 
 logger = logging.getLogger(__name__)
@@ -71,6 +71,31 @@ def _to_serializable(obj) -> dict | None:
     return obj
 
 
+def _graph_config(session_id: str) -> dict:
+    """Keep every graph invocation bound to its durable API session."""
+    return {"configurable": {"thread_id": session_id}}
+
+
+def _is_waiting_for_confirmation(snapshot) -> bool:
+    return "human_confirm" in (snapshot.next or ())
+
+
+def _confirmation_message(plan: TripPlan) -> str:
+    return (
+        f"Mình đã tạo kế hoạch nháp cho {plan.destination}. "
+        "Hãy xem lại thông tin và bấm **Xác nhận kế hoạch** để mình bắt đầu "
+        "tra cứu thời tiết, chi phí, chuyến bay và khách sạn."
+    )
+
+
+def _latest_ai_text(state: dict) -> str:
+    ai_messages = [
+        m for m in state.get("messages", [])
+        if isinstance(m, AIMessage) and m.content
+    ]
+    return _extract_text(ai_messages[-1].content) if ai_messages else ""
+
+
 def _update_decision_report(session_id: str, plan: TripPlan, travel_context: dict) -> None:
     """Đồng bộ hóa TripPlan sang Decision Engine để cập nhật chi phí & rủi ro"""
     store = get_session_store()
@@ -99,8 +124,19 @@ def _update_decision_report(session_id: str, plan: TripPlan, travel_context: dic
         weather_warning=weather_warning,
     )
 
+    serialized_report = travel_context.get("decision_report")
+    if isinstance(serialized_report, dict):
+        try:
+            report = deserialize_decision_report(serialized_report)
+        except (KeyError, TypeError, ValueError) as exc:
+            logger.warning("Ignoring invalid agent decision report: %s", exc)
+
     store.save_trip_plan(session_id, plan)
     store.save_decision(session_id, report)
+
+    itinerary = travel_context.get("itinerary")
+    if itinerary:
+        store.save_itinerary(session_id, itinerary)
 
 
 # ──────────────────────────────────────────
@@ -154,7 +190,10 @@ async def chat(request: ChatRequest):
 
     try:
         agent = get_agent()
-        final_state = await agent.ainvoke(initial_state)
+        graph_config = _graph_config(session_id)
+        final_state = await run_graph_call(agent.invoke, initial_state, config=graph_config)
+        snapshot = await run_graph_call(agent.get_state, graph_config)
+        awaiting_confirmation = _is_waiting_for_confirmation(snapshot)
 
         # Lưu lại kế hoạch và cập nhật báo cáo chi phí/rủi ro nếu có
         plan = final_state.get("trip_plan")
@@ -168,6 +207,9 @@ async def chat(request: ChatRequest):
         response_text = _extract_text(ai_messages[-1].content) if ai_messages else "(Không có phản hồi)"
 
         # Lưu lịch sử cuộc hội thoại vào SQL Server
+        if awaiting_confirmation and plan:
+            response_text = _confirmation_message(plan)
+
         updated_history = []
         for msg in (request.conversation_history or []):
             updated_history.append({"role": msg.role.value, "content": msg.content})
@@ -222,9 +264,12 @@ async def chat_stream(request: ChatRequest):
 
         agent = get_agent()
         final_state = None
+        graph_config = _graph_config(session_id)
 
         try:
-            async for event in agent.astream_events(initial_state, version="v2"):
+            async for event in stream_graph_events(
+                agent, initial_state, config=graph_config, version="v2"
+            ):
                 kind = event.get("event")
                 name = event.get("name")
                 node_name = event.get("metadata", {}).get("langgraph_node")
@@ -271,6 +316,11 @@ async def chat_stream(request: ChatRequest):
                         final_state = output
 
             # 5. Xử lý lưu trữ sau khi graph chạy xong hoàn toàn
+            snapshot = await run_graph_call(agent.get_state, graph_config)
+            if snapshot.values:
+                final_state = dict(snapshot.values)
+            awaiting_confirmation = _is_waiting_for_confirmation(snapshot)
+
             if final_state:
                 # Trích xuất và lưu lịch sử cuộc hội thoại vào SQL Server
                 ai_messages = [
@@ -283,6 +333,10 @@ async def chat_stream(request: ChatRequest):
                 for msg in (request.conversation_history or []):
                     updated_history.append({"role": msg.role.value, "content": msg.content})
                 updated_history.append({"role": "user", "content": request.message})
+                plan: TripPlan = final_state.get("trip_plan")
+                if awaiting_confirmation and plan:
+                    response_text = _confirmation_message(plan)
+
                 if response_text:
                     updated_history.append({"role": "assistant", "content": response_text})
                 
@@ -294,11 +348,19 @@ async def chat_stream(request: ChatRequest):
                     # Gửi plan và decision mới nhất về client
                     latest_plan = store.get_or_create(session_id).trip_plan
                     latest_decision = store.get_or_create(session_id).decision
+                    latest_itinerary = store.get_or_create(session_id).itinerary
                     yield f"data: {json.dumps({'type': 'plan', 'data': _to_serializable(latest_plan)})}\n\n"
                     if latest_decision:
                         yield f"data: {json.dumps({'type': 'decision', 'data': _to_serializable(latest_decision)})}\n\n"
+                    if latest_itinerary:
+                        yield f"data: {json.dumps({'type': 'itinerary', 'data': latest_itinerary})}\n\n"
 
                 # Gửi sự kiện done để báo kết thúc an toàn
+                if response_text:
+                    yield f"data: {json.dumps({'type': 'token', 'content': response_text})}\n\n"
+                if awaiting_confirmation:
+                    yield f"data: {json.dumps({'type': 'interrupt', 'reason': 'human_confirm'})}\n\n"
+
                 yield f"data: {json.dumps({'type': 'done', 'session_id': session_id, 'tools_used': final_state.get('tools_used', [])})}\n\n"
 
         except ResourceExhausted:
@@ -324,6 +386,7 @@ async def get_trip(session_id: str):
         "decision": _to_serializable(state.decision),
         "status": state.trip_plan.status if state.trip_plan else "empty",
         "history": state.conversation_history,
+        "itinerary": state.itinerary,
     }
 
 
@@ -345,8 +408,50 @@ async def confirm_trip(session_id: str):
         raise HTTPException(status_code=400, detail="Không có kế hoạch du lịch nào để xác nhận.")
 
     # Cập nhật status
+    agent = get_agent()
+    graph_config = _graph_config(session_id)
+    snapshot = await run_graph_call(agent.get_state, graph_config)
+    if False and not _is_waiting_for_confirmation(snapshot):
+        raise HTTPException(
+            status_code=409,
+            detail="Káº¿ hoáº¡ch khÃ´ng á»Ÿ tráº¡ng thÃ¡i chá» xÃ¡c nháº­n hoáº·c checkpoint Ä‘Ã£ háº¿t háº¡n.",
+        )
+
     state.trip_plan.status = TripStatus.CONFIRMED
     store.save_trip_plan(session_id, state.trip_plan)
+    if _is_waiting_for_confirmation(snapshot):
+        await run_graph_call(agent.update_state, graph_config, {"trip_plan": state.trip_plan})
+        final_state = await run_graph_call(agent.invoke, None, config=graph_config)
+    else:
+        # Supports sessions created before durable checkpointing was enabled.
+        fallback_state: TravelAgentState = {
+            "messages": [HumanMessage(content="Execute the approved trip plan.")],
+            "trip_plan": state.trip_plan,
+            "intent": "plan_trip",
+            "tools_used": [],
+            "travel_context": {},
+            "error": None,
+        }
+        final_state = await run_graph_call(agent.invoke, fallback_state, config=graph_config)
+    plan = final_state.get("trip_plan")
+    if plan:
+        _update_decision_report(session_id, plan, final_state.get("travel_context", {}))
+
+    response_text = _latest_ai_text(final_state)
+    history = list(state.conversation_history)
+    if response_text:
+        history.append({"role": "assistant", "content": response_text})
+        store.save_history(session_id, history)
+
+    latest = store.get_or_create(session_id)
+    return {
+        "status": "completed",
+        "response": response_text,
+        "plan": _to_serializable(latest.trip_plan),
+        "decision": _to_serializable(latest.decision),
+        "itinerary": latest.itinerary,
+        "tools_used": final_state.get("tools_used", []),
+    }
 
     # Gửi lệnh kích hoạt agent tìm kiếm chi tiết
     # Client sẽ gọi stream endpoint với tin nhắn này để hiển thị trực tiếp cho user

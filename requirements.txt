@@ -4,6 +4,7 @@ uvicorn[standard]==0.32.1
 
 # LangGraph & LangChain
 langgraph==0.2.60
+langgraph-checkpoint-sqlite==2.0.8
 langchain==0.3.14
 langchain-google-genai==2.0.7
 langchain-community==0.3.14

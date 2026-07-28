@@ -57,6 +57,19 @@ def route_by_intent(state: TravelAgentState) -> str:
     return "planner" if needs_trip_plan(intent) else "agent"
 
 
+def route_after_planner(state: TravelAgentState) -> str:
+    """Pause only when the extracted plan has enough information to execute."""
+    plan = state.get("trip_plan")
+    if plan and plan.is_ready_to_search():
+        return "human_confirm"
+    return "agent"
+
+
+def human_confirm_node(state: TravelAgentState) -> dict:
+    """No-op human gate; LangGraph interrupts immediately before this node."""
+    return {}
+
+
 def should_continue(state: TravelAgentState) -> str:
     """
     Edge function: Quyết định agent nên tiếp tục (gọi tool) hay dừng.

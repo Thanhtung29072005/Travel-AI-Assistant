@@ -1,3 +1,4 @@
+from dataclasses import asdict
 from datetime import date
 from app.agent.state import TravelAgentState
 from app.services.calculator import get_decision_engine
@@ -15,22 +16,31 @@ def cost_agent_node(state: TravelAgentState) -> dict:
         print("[COST AGENT] Fetching flight and hotel options from Gateway...")
         
         # 1. Tra cứu vé máy bay thực tế/mock từ Gateway
-        flights = fetch_flights(
+        flight_result = fetch_flights(
             origin=plan.origin or "Hà Nội",
             destination=plan.destination,
             departure_date=plan.dates.departure or "2026-08-10",
             return_date=plan.dates.return_date
         )
+        flights = flight_result.items
         
         # 2. Tra cứu khách sạn thực tế/mock từ Gateway
-        hotels = fetch_hotels(
+        hotel_result = fetch_hotels(
             destination=plan.destination,
-            comfort_level=plan.comfort_level or "medium"
+            comfort_level=plan.comfort_level or "medium",
+            check_in_date=plan.dates.departure,
+            check_out_date=plan.dates.return_date,
+            travelers=plan.travelers,
         )
+        hotels = hotel_result.items
         
         # 3. Lưu trữ kết quả tìm kiếm vào travel_context dưới dạng text để Response Agent hiển thị
         context["flights"] = [f.to_text() for f in flights]
         context["hotels"] = [h.to_text() for h in hotels]
+        context["provider_sources"] = {
+            "flights": flight_result.metadata.to_dict(),
+            "hotels": hotel_result.metadata.to_dict(),
+        }
         
         print("[COST AGENT] Analyzing feasibility and risks based on fetched options...")
         de = get_decision_engine()
@@ -59,6 +69,7 @@ def cost_agent_node(state: TravelAgentState) -> dict:
             hotel_options=hotels
         )
         context["cost_feasibility"] = report.to_text()
+        context["decision_report"] = asdict(report)
         tools_used.append("evaluate_trip_feasibility")
 
     return {

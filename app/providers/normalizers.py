@@ -20,9 +20,10 @@ class FlightOption(BaseModel):
         dur_hrs = self.duration_minutes // 60
         dur_mins = self.duration_minutes % 60
         dur_text = f"{dur_hrs}h {dur_mins}m" if dur_hrs > 0 else f"{dur_mins}m"
+        source = "giá live" if self.data_mode == "live" else "giá tham khảo (fixture)"
         return (
             f"[{self.airline}] Vé bay: {self.price:,.0f} {self.currency}/người "
-            f"({self.departure_time} - {self.arrival_time}, {dur_text}, {stops_text})"
+            f"({self.departure_time} - {self.arrival_time}, {dur_text}, {stops_text}; {source})"
         )
 
 class HotelOption(BaseModel):
@@ -39,9 +40,10 @@ class HotelOption(BaseModel):
     def to_text(self) -> str:
         rating_text = f"{self.rating}★ ({self.review_count} reviews)" if self.rating else "Chưa xếp hạng"
         amenities_text = f", Tiện ích: {', '.join(self.amenities[:3])}" if self.amenities else ""
+        source = "giá live" if self.data_mode == "live" else "giá tham khảo (fixture)"
         return (
             f"[{self.name}] {self.area} - {self.price_per_night:,.0f} VND/đêm "
-            f"({rating_text}{amenities_text})"
+            f"({rating_text}{amenities_text}; {source})"
         )
 
 def normalize_flights(items: List[dict], data_mode: str = "live") -> List[FlightOption]:

@@ -15,10 +15,16 @@ from __future__ import annotations
 import re
 from typing import Literal
 
-IntentType = Literal["plan_trip", "ask_weather", "ask_info", "general"]
+IntentType = Literal["plan_trip", "ask_weather", "ask_info", "out_of_scope", "general"]
 
 
 # ── Keyword sets (chuẩn hóa lowercase, không dấu kết hợp với có dấu) ──────────
+
+_OUT_OF_SCOPE_KEYWORDS = [
+    "viet code", "code python", "lap trinh", "viet ham", "thuat toan", "html/css", "javascript", "viet script",
+    "giai toan", "bai tap ve nha", "phuong trinh", "benh an", "thuoc tri", "tu van luat", "hien phap", "chinh tri",
+    "viet code", "lập trình", "viết hàm", "thuật toán", "giải toán", "bài tập về nhà", "phương trình"
+]
 
 _PLAN_KEYWORDS = [
     # Yêu cầu lập kế hoạch / đặt lịch
@@ -100,6 +106,11 @@ def classify_intent(message: str) -> IntentType:
         IntentType string
     """
     normalized = _normalize(message)
+
+    # Kiểm tra ngoài phạm vi (Ưu tiên cao nhất)
+    out_of_scope_score = sum(1 for kw in _OUT_OF_SCOPE_KEYWORDS if kw in normalized)
+    if out_of_scope_score >= 1:
+        return "out_of_scope"
 
     # Đếm hits cho từng nhóm
     plan_score = sum(1 for kw in _PLAN_KEYWORDS if kw in normalized)

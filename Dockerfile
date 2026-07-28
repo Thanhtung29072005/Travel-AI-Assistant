@@ -30,6 +30,7 @@ ENV PATH=/root/.local/bin:$PATH
 
 # Copy source code của ứng dụng
 COPY app/ ./app/
+RUN mkdir -p /app/data
 
 # Port exposure
 EXPOSE 8000

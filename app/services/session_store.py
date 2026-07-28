@@ -23,10 +23,11 @@ class SessionState:
         self.session_id = session_id
         self.trip_plan = trip_plan
         self.decision = decision
-        self.conversation_history: list = []  # Phục vụ lưu vết chat tạm thời nếu cần
+        self.conversation_history: list = []
+        self.itinerary: Optional[str] = None
 
 
-def _deserialize_decision_report(data_dict: dict) -> DecisionReport:
+def deserialize_decision_report(data_dict: dict) -> DecisionReport:
     """Khôi phục đối tượng dataclass DecisionReport từ dictionary JSON"""
     # 1. Khôi phục Breakdown
     b = data_dict["cost_estimate"]["breakdown"]
@@ -166,6 +167,7 @@ class SessionStore:
                                 trip_plan_json NVARCHAR(MAX) NULL,
                                 decision_json NVARCHAR(MAX) NULL,
                                 history_json NVARCHAR(MAX) NULL,
+                                itinerary_text NVARCHAR(MAX) NULL,
                                 created_at DATETIME NOT NULL DEFAULT GETDATE(),
                                 updated_at DATETIME NOT NULL DEFAULT GETDATE()
                             );
@@ -175,6 +177,10 @@ class SessionStore:
                             IF NOT EXISTS (SELECT * FROM sys.columns WHERE object_id = OBJECT_ID('sessions') AND name = 'history_json')
                             BEGIN
                                 ALTER TABLE sessions ADD history_json NVARCHAR(MAX) NULL;
+                            END
+                            IF NOT EXISTS (SELECT * FROM sys.columns WHERE object_id = OBJECT_ID('sessions') AND name = 'itinerary_text')
+                            BEGIN
+                                ALTER TABLE sessions ADD itinerary_text NVARCHAR(MAX) NULL;
                             END
                         END
                     """)
@@ -193,25 +199,27 @@ class SessionStore:
         
         with conn.cursor() as cursor:
             cursor.execute(
-                "SELECT trip_plan_json, decision_json, history_json FROM sessions WHERE session_id = %s",
+                "SELECT trip_plan_json, decision_json, history_json, itinerary_text FROM sessions WHERE session_id = %s",
                 (session_id,)
             )
             row = cursor.fetchone()
             if row:
-                plan_json, decision_json, history_json = row[0], row[1], row[2]
+                plan_json, decision_json, history_json, itinerary_text = row[0], row[1], row[2], row[3]
                 if plan_json:
                     state.trip_plan = TripPlan.model_validate_json(plan_json)
                 if decision_json:
-                    state.decision = _deserialize_decision_report(json.loads(decision_json))
+                    state.decision = deserialize_decision_report(json.loads(decision_json))
                 if history_json:
                     try:
                         state.conversation_history = json.loads(history_json)
                     except Exception:
                         state.conversation_history = []
+                if itinerary_text:
+                    state.itinerary = itinerary_text
             else:
                 # Tạo mới dòng trạng thái
                 cursor.execute(
-                    "INSERT INTO sessions (session_id, trip_plan_json, decision_json, history_json) VALUES (%s, NULL, NULL, NULL)",
+                    "INSERT INTO sessions (session_id, trip_plan_json, decision_json, history_json, itinerary_text) VALUES (%s, NULL, NULL, NULL, NULL)",
                     (session_id,)
                 )
         conn.close()
@@ -272,6 +280,23 @@ class SessionStore:
                     INSERT (session_id, trip_plan_json, decision_json, history_json)
                     VALUES (source.session_id, NULL, NULL, %s);
             """, (session_id, history_json, history_json))
+        conn.close()
+
+    def save_itinerary(self, session_id: str, itinerary: str) -> None:
+        """Ghi đè/cập nhật văn bản lịch trình (itinerary) vào SQL Server"""
+        self._initialize_db()
+        conn = self._get_connection()
+        with conn.cursor() as cursor:
+            cursor.execute("""
+                MERGE INTO sessions AS target
+                USING (SELECT %s AS session_id) AS source
+                ON target.session_id = source.session_id
+                WHEN MATCHED THEN
+                    UPDATE SET itinerary_text = %s, updated_at = GETDATE()
+                WHEN NOT MATCHED THEN
+                    INSERT (session_id, trip_plan_json, decision_json, itinerary_text)
+                    VALUES (source.session_id, NULL, NULL, %s);
+            """, (session_id, itinerary, itinerary))
         conn.close()
 
     def clear(self, session_id: str) -> None:

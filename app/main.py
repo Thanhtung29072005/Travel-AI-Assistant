@@ -12,6 +12,7 @@ from pathlib import Path
 
 from app.config import get_settings
 from app.api.routes import router
+from app.agent.graph import close_agent
 
 
 settings = get_settings()
@@ -28,6 +29,7 @@ async def lifespan(app: FastAPI):
     print(f"SQL Server Settings: host={settings.sql_server or settings.sql_server_host}, port={settings.sql_server_port}, database={settings.sql_server_database}, user={settings.sql_username or settings.sql_server_user}")
     print(f"Frontend: http://{settings.host}:{settings.port}/")
     yield
+    close_agent()
     print("Server shutting down...")
 
 

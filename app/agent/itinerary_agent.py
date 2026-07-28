@@ -2,6 +2,20 @@ from langchain_core.messages import SystemMessage, HumanMessage
 from app.agent.state import TravelAgentState
 from app.agent.llm import get_llm_plain
 
+
+def _fallback_itinerary(destination: str, days: int) -> str:
+    """Return a visible, editable daily outline when the itinerary LLM fails."""
+    sections = []
+    for day in range(1, max(days, 1) + 1):
+        if day == 1:
+            activities = ["Sáng: đến nơi, nhận phòng và nghỉ ngơi.", "Chiều: khám phá khu vực trung tâm.", "Tối: thưởng thức ẩm thực địa phương."]
+        elif day == max(days, 1):
+            activities = ["Sáng: tham quan điểm yêu thích gần nơi ở.", "Trưa: trả phòng và chuẩn bị di chuyển.", "Chiều: kết thúc chuyến đi hoặc trở về."]
+        else:
+            activities = ["Sáng: tham quan điểm nổi bật.", "Chiều: hoạt động theo sở thích.", "Tối: tự do khám phá ẩm thực."]
+        sections.append(f"## Ngày {day}: {destination}\n" + "\n".join(f"- {item}" for item in activities))
+    return "\n\n".join(sections)
+
 def itinerary_agent_node(state: TravelAgentState) -> dict:
     """
     Itinerary Agent - Tao suon lich trinh chi tiet.
@@ -33,11 +47,11 @@ def itinerary_agent_node(state: TravelAgentState) -> dict:
         
         try:
             response = llm.invoke(messages)
-            context["itinerary"] = response.content
+            context["itinerary"] = response.content or _fallback_itinerary(plan.destination, plan.dates.days or 3)
             tools_used.append("create_travel_itinerary")
         except Exception as e:
             print(f"[ITINERARY AGENT] LLM Call failed: {e}")
-            context["itinerary"] = f"Loi lap lich trinh: {str(e)}"
+            context["itinerary"] = _fallback_itinerary(plan.destination, plan.dates.days or 3)
 
     return {
         "travel_context": context,

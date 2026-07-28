@@ -1,6 +1,65 @@
 from __future__ import annotations
-from typing import List
+from dataclasses import asdict, dataclass
+from datetime import date, timedelta
+import re
+from typing import Generic, List, TypeVar
+
+import httpx
+
+from app.config import get_settings
 from app.providers.normalizers import FlightOption, HotelOption, normalize_flights, normalize_hotels
+
+
+T = TypeVar("T")
+SERPAPI_SEARCH_URL = "https://serpapi.com/search.json"
+
+
+@dataclass(frozen=True)
+class ProviderMetadata:
+    provider: str
+    data_mode: str
+    retrieved_at: str
+    fallback_reason: str | None = None
+
+    def to_dict(self) -> dict:
+        return asdict(self)
+
+
+@dataclass(frozen=True)
+class ProviderResult(Generic[T]):
+    items: List[T]
+    metadata: ProviderMetadata
+
+
+class ProviderError(RuntimeError):
+    """A live travel provider did not return usable search results."""
+
+
+def _now_iso() -> str:
+    from datetime import datetime, timezone
+    return datetime.now(timezone.utc).isoformat()
+
+
+def _search_serpapi(params: dict, api_key: str) -> dict:
+    response = httpx.get(
+        SERPAPI_SEARCH_URL,
+        params={**params, "api_key": api_key},
+        timeout=12.0,
+    )
+    response.raise_for_status()
+    payload = response.json()
+    if payload.get("error"):
+        raise ProviderError(str(payload["error"]))
+    return payload
+
+
+def _digits(value) -> float:
+    if isinstance(value, (int, float)):
+        return float(value)
+    if not value:
+        return 0.0
+    number = re.sub(r"[^0-9.]", "", str(value).replace(",", ""))
+    return float(number) if number else 0.0
 
 # ============================================================
 # API Mock Data Fixtures for Vietnam Destinations
@@ -95,7 +154,7 @@ def _map_city_to_iata(city_name: str) -> str:
     
     return "HAN"  # Fallback mặc định
 
-def fetch_flights(origin: str, destination: str, departure_date: str, return_date: str | None = None) -> List[FlightOption]:
+def _fetch_fixture_flights(origin: str, destination: str, departure_date: str, return_date: str | None = None) -> List[FlightOption]:
     """Tìm kiếm chuyến bay (hiện tại trả về dữ liệu mock chất lượng cao)"""
     ori_iata = _map_city_to_iata(origin)
     dest_iata = _map_city_to_iata(destination)
@@ -135,7 +194,7 @@ def fetch_flights(origin: str, destination: str, departure_date: str, return_dat
 
     return normalize_flights(items, data_mode="fixture")
 
-def fetch_hotels(destination: str, comfort_level: str = "medium") -> List[HotelOption]:
+def _fetch_fixture_hotels(destination: str, comfort_level: str = "medium") -> List[HotelOption]:
     """Tìm kiếm khách sạn tại điểm đến dựa trên mức độ thoải mái mong muốn"""
     # Chuẩn hóa tên điểm đến
     dest_key = "Da Nang"
@@ -165,3 +224,162 @@ def fetch_hotels(destination: str, comfort_level: str = "medium") -> List[HotelO
         items.append(item)
 
     return normalize_hotels(items, data_mode="fixture")
+
+
+def _live_flights(
+    origin: str,
+    destination: str,
+    departure_date: str,
+    return_date: str | None,
+    api_key: str,
+) -> List[FlightOption]:
+    payload = _search_serpapi(
+        {
+            "engine": "google_flights",
+            "departure_id": _map_city_to_iata(origin),
+            "arrival_id": _map_city_to_iata(destination),
+            "outbound_date": departure_date,
+            "return_date": return_date,
+            "type": 1 if return_date else 2,
+            "adults": 1,
+            "currency": "VND",
+            "hl": "en",
+            "gl": "vn",
+        },
+        api_key,
+    )
+    raw_items = []
+    for itinerary in (payload.get("best_flights", []) + payload.get("other_flights", []))[:8]:
+        legs = itinerary.get("flights", [])
+        if not legs or not itinerary.get("price"):
+            continue
+        first, last = legs[0], legs[-1]
+        raw_items.append(
+            {
+                "airline": first.get("airline"),
+                "departure_time": str(first.get("departure_airport", {}).get("time", "")).split(" ")[-1],
+                "arrival_time": str(last.get("arrival_airport", {}).get("time", "")).split(" ")[-1],
+                "total_duration": itinerary.get("total_duration") or sum(leg.get("duration", 0) for leg in legs),
+                "stops": max(len(legs) - 1, 0),
+                "price": itinerary["price"],
+                "price_scope": "round_trip_per_traveler" if return_date else "one_way_per_traveler",
+                "currency": payload.get("search_parameters", {}).get("currency", "VND"),
+                "booking_url": None,
+                "data_mode": "live",
+            }
+        )
+    options = normalize_flights(raw_items, data_mode="live")
+    if not options:
+        raise ProviderError("Google Flights returned no priced itineraries")
+    return options
+
+
+def _live_hotels(
+    destination: str,
+    check_in_date: str,
+    check_out_date: str,
+    travelers: int,
+    api_key: str,
+) -> List[HotelOption]:
+    payload = _search_serpapi(
+        {
+            "engine": "google_hotels",
+            "q": f"{destination} hotels",
+            "check_in_date": check_in_date,
+            "check_out_date": check_out_date,
+            "adults": max(travelers, 1),
+            "currency": "VND",
+            "hl": "en",
+            "gl": "vn",
+        },
+        api_key,
+    )
+    raw_items = []
+    for property_ in payload.get("properties", [])[:8]:
+        rate = property_.get("rate_per_night", {})
+        price = _digits(rate.get("extracted_lowest") or rate.get("lowest") or property_.get("extracted_price"))
+        if not price:
+            continue
+        raw_items.append(
+            {
+                "name": property_.get("name"),
+                "location": property_.get("neighborhood") or property_.get("description", ""),
+                "price": price,
+                "rating": property_.get("overall_rating"),
+                "reviews": property_.get("reviews"),
+                "booking_url": property_.get("link"),
+                "amenities": property_.get("amenities", []),
+                "data_mode": "live",
+            }
+        )
+    options = normalize_hotels(raw_items, data_mode="live")
+    if not options:
+        raise ProviderError("Google Hotels returned no nightly prices")
+    return options
+
+
+def _fallback_metadata(provider: str, reason: str) -> ProviderMetadata:
+    return ProviderMetadata(
+        provider=provider,
+        data_mode="fixture",
+        retrieved_at=_now_iso(),
+        fallback_reason=reason,
+    )
+
+
+def fetch_flights(
+    origin: str,
+    destination: str,
+    departure_date: str,
+    return_date: str | None = None,
+) -> ProviderResult[FlightOption]:
+    """Return live SerpApi/Google Flights results, or explicitly marked fixtures."""
+    api_key = get_settings().serpapi_api_key.strip()
+    if not api_key:
+        return ProviderResult(
+            _fetch_fixture_flights(origin, destination, departure_date, return_date),
+            _fallback_metadata("Fixture flight catalog", "SERPAPI_API_KEY is not configured"),
+        )
+    try:
+        return ProviderResult(
+            _live_flights(origin, destination, departure_date, return_date, api_key),
+            ProviderMetadata("SerpApi / Google Flights", "live", _now_iso()),
+        )
+    except (httpx.HTTPError, ProviderError, ValueError) as exc:
+        return ProviderResult(
+            _fetch_fixture_flights(origin, destination, departure_date, return_date),
+            _fallback_metadata("Fixture flight catalog", f"Live provider unavailable ({type(exc).__name__})"),
+        )
+
+
+def fetch_hotels(
+    destination: str,
+    comfort_level: str = "medium",
+    check_in_date: str | None = None,
+    check_out_date: str | None = None,
+    travelers: int = 1,
+) -> ProviderResult[HotelOption]:
+    """Return live SerpApi/Google Hotels results, or explicitly marked fixtures."""
+    check_in = check_in_date or (date.today() + timedelta(days=14)).isoformat()
+    try:
+        default_check_out = (date.fromisoformat(check_in) + timedelta(days=1)).isoformat()
+    except ValueError:
+        check_in = (date.today() + timedelta(days=14)).isoformat()
+        default_check_out = (date.today() + timedelta(days=15)).isoformat()
+    check_out = check_out_date or default_check_out
+    api_key = get_settings().serpapi_api_key.strip()
+    if not api_key:
+        return ProviderResult(
+            _fetch_fixture_hotels(destination, comfort_level),
+            _fallback_metadata("Fixture hotel catalog", "SERPAPI_API_KEY is not configured"),
+        )
+    try:
+        return ProviderResult(
+            _live_hotels(destination, check_in, check_out, travelers, api_key),
+            ProviderMetadata("SerpApi / Google Hotels", "live", _now_iso()),
+        )
+    except (httpx.HTTPError, ProviderError, ValueError) as exc:
+        return ProviderResult(
+            _fetch_fixture_hotels(destination, comfort_level),
+            _fallback_metadata("Fixture hotel catalog", f"Live provider unavailable ({type(exc).__name__})"),
+        )

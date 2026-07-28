@@ -11,6 +11,7 @@ let conversationHistory = [];
 let isLoading     = false;
 let currentPlan   = null;
 let currentDecision = null;
+let currentItinerary = null;
 let chatHistory   = []; // [{id, title, sessionId, time}]
 let activeHistoryId = null;
 
@@ -140,7 +141,7 @@ function bindEvents() {
 
   // Export buttons
   exportMdBtn.addEventListener('click', exportMarkdown);
-  exportPdfBtn.addEventListener('click', () => window.print());
+  exportPdfBtn.addEventListener('click', printWorkspace);
 
   // Settings / Help (placeholder)
   $('settingsBtn').addEventListener('click', () => alert('Cài đặt – sắp ra mắt!'));
@@ -253,6 +254,7 @@ async function loadSession(sid) {
     // 2. Phục hồi workspace
     currentPlan = data.plan;
     currentDecision = data.decision;
+    currentItinerary = data.itinerary;
     updateWorkspaceUI();
 
   } catch (err) {
@@ -270,6 +272,7 @@ function startNewChat(resetHeader = true) {
   sessionId = null;
   currentPlan = null;
   currentDecision = null;
+  currentItinerary = null;
   activeHistoryId = null;
 
   // Clear messages
@@ -373,6 +376,9 @@ async function handleSend(customText = null) {
             updateWorkspaceUI();
           } else if (payload.type === 'decision') {
             currentDecision = payload.data;
+            updateWorkspaceUI();
+          } else if (payload.type === 'itinerary') {
+            currentItinerary = payload.data;
             updateWorkspaceUI();
           } else if (payload.type === 'done') {
             sessionId = payload.session_id;
@@ -669,7 +675,7 @@ function updateWorkspaceUI() {
   }
 
   // Itinerary section (if plan has itinerary data embedded in context)
-  itinerarySection.style.display = 'none';
+  updateItineraryUI();
 }
 
 // ── Patch TripPlan (HITL) ──────────────────────────────────
@@ -723,11 +729,19 @@ async function confirmTripPlan() {
     confirmTripBtn.textContent = 'Đang gửi...';
 
     const res = await fetch(`${API_BASE}/trips/${sessionId}/confirm`, { method: 'POST' });
-    if (!res.ok) throw new Error('Không thể xác nhận kế hoạch.');
+    if (!res.ok) {
+      const error = await res.json().catch(() => ({}));
+      throw new Error(error.detail || error.message || 'Could not confirm the trip plan.');
+    }
     const data = await res.json();
     currentPlan = data.plan;
+    currentDecision = data.decision;
+    currentItinerary = data.itinerary;
     updateWorkspaceUI();
-    handleSend(data.trigger_message);
+    if (data.response) {
+      appendMessage('assistant', data.response);
+      conversationHistory.push({ role: 'assistant', content: data.response });
+    }
   } catch (err) {
     alert(err.message);
     confirmTripBtn.disabled = false;
@@ -868,10 +882,12 @@ function renderMarkdown(raw) {
   // Italic
   html = html.replace(/\*(.+?)\*/g, '<em>$1</em>');
 
-  // Headings
+  // Headings (h5 → h4 → h3 → h2 → h1, most-specific first)
+  html = html.replace(/^##### (.+)$/gm, '<h5 style="font-size:13px;font-weight:700;margin:10px 0 4px;color:var(--text-primary)">$1</h5>');
+  html = html.replace(/^#### (.+)$/gm, '<h4 style="font-size:14px;font-weight:700;margin:10px 0 4px;color:var(--text-primary)">$1</h4>');
   html = html.replace(/^### (.+)$/gm, '<h3>$1</h3>');
-  html = html.replace(/^## (.+)$/gm, '<h2>$1</h2>');
-  html = html.replace(/^# (.+)$/gm, '<h1>$1</h1>');
+  html = html.replace(/^## (.+)$/gm,  '<h2>$1</h2>');
+  html = html.replace(/^# (.+)$/gm,   '<h1>$1</h1>');
 
   // Lists
   html = html.replace(/^[-*•] (.+)$/gm, '<li>$1</li>');
@@ -932,4 +948,194 @@ function closeSidebar() {
   sidebar.classList.remove('open');
   const overlay = $('sidebarOverlay');
   if (overlay) overlay.remove();
+}
+
+function parseItineraryMarkdown(md) {
+  if (!md) return [];
+  const lines = md.split('\n');
+  let days = [];
+  let currentDay = null;
+
+  lines.forEach((line) => {
+    const trimmed = line.trim();
+    // Accept common LLM headings: "Ngày 1", "Lịch trình ngày 1", or "Day 1".
+    const dayMatch = trimmed.match(/^(?:#{1,3}\s*)?(?:(?:lịch trình)\s*)?(?:ngày|day)\s*\d+\b.*$/i);
+    if (dayMatch) {
+      if (currentDay) days.push(currentDay);
+      currentDay = {
+        title: trimmed.replace(/^#{1,3}\s*/, ''),
+        items: []
+      };
+    } else if (trimmed.startsWith('-') || trimmed.startsWith('*') || trimmed.startsWith('•')) {
+      if (currentDay) {
+        const content = trimmed.substring(1).trim();
+        let type = 'attraction';
+        const lower = content.toLowerCase();
+        
+        if (lower.startsWith('sáng') || lower.startsWith('chiều')) {
+          type = 'attraction';
+        } else if (lower.startsWith('trưa') || lower.startsWith('tối') || lower.includes('ăn') || lower.includes('ẩm thực')) {
+          type = 'food';
+        } else if (lower.includes('khách sạn') || lower.includes('check-in') || lower.includes('nghỉ ngơi')) {
+          type = 'hotel';
+        } else if (lower.includes('bay') || lower.includes('xe') || lower.includes('di chuyển') || lower.includes('đáp')) {
+          type = 'transport';
+        }
+        
+        currentDay.items.push({
+          type: type,
+          content: content
+        });
+      }
+    }
+  });
+
+  if (currentDay) days.push(currentDay);
+  return days;
+}
+
+function updateItineraryUI() {
+  if (!currentItinerary) {
+    itinerarySection.style.display = 'none';
+    return;
+  }
+
+  const days = parseItineraryMarkdown(currentItinerary);
+  if (days.length === 0) {
+    // Do not silently hide a valid itinerary just because its Markdown does
+    // not follow the exact timeline heading convention.
+    itinerarySection.style.display = 'block';
+    itineraryList.innerHTML = `<div class="itinerary-raw">${renderMarkdown(currentItinerary)}</div>`;
+    return;
+  }
+
+  itinerarySection.style.display = 'block';
+  itineraryList.innerHTML = days.map((day) => {
+    const itemsHtml = day.items.map((item) => {
+      let badgeLabel = 'Tham quan';
+      if (item.type === 'food') badgeLabel = 'Ăn uống';
+      if (item.type === 'hotel') badgeLabel = 'Khách sạn';
+      if (item.type === 'transport') badgeLabel = 'Di chuyển';
+      
+      return `
+        <div class="place-card">
+          <div class="place-card-header">
+            <span class="place-type-badge ${item.type}">${badgeLabel}</span>
+            <div class="place-name">${escapeHtml(item.content)}</div>
+          </div>
+        </div>
+      `;
+    }).join('');
+
+    return `
+      <div class="day-block">
+        <div class="day-header">
+          <span class="day-label">${escapeHtml(day.title)}</span>
+        </div>
+        ${itemsHtml}
+      </div>
+    `;
+  }).join('');
+}
+
+// ── Print Workspace (PDF Export) ───────────────────────────
+function printWorkspace() {
+  if (!currentPlan) {
+    alert('Chưa có kế hoạch nào để xuất PDF. Hãy bắt đầu một cuộc hội thoại du lịch trước nhé!');
+    return;
+  }
+
+  const wsBody = document.querySelector('.workspace-body');
+  if (!wsBody) return;
+
+  // Capture fully-rendered HTML (badges, bold text, tables already rendered)
+  const contentHTML = wsBody.innerHTML;
+
+  const tripTitle = currentPlan?.destination
+    ? `Kế hoạch du lịch: ${currentPlan.destination}`
+    : 'Kế hoạch du lịch – Hana AI';
+
+  // Use the actual style.css from the server so colours/fonts are identical to the UI
+  const cssHref = `${window.location.origin}/static/css/style.css?v=10`;
+  const fontsHref = 'https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap';
+
+  // Only override layout-level things that differ in the print popup
+  const overrideCSS = `
+    /* Reset page chrome */
+    html, body {
+      background: #fff !important;
+      color: #1a1a2e !important;
+      padding: 24px 28px !important;
+      margin: 0 !important;
+      font-family: 'Inter', sans-serif !important;
+      font-size: 13px !important;
+      line-height: 1.6 !important;
+    }
+
+    /* Print heading */
+    h1.print-title {
+      font-size: 20px;
+      font-weight: 700;
+      color: #E53935;
+      margin-bottom: 20px;
+      padding-bottom: 10px;
+      border-bottom: 2px solid #E53935;
+    }
+
+    /* Hide elements that should not appear in PDF */
+    .trip-edit-form,
+    #quickLinksSection,
+    .workspace-footer { display: none !important; }
+
+    /* Ensure workspace body is fully visible (not clipped/scrolled) */
+    .workspace-body {
+      overflow: visible !important;
+      max-height: none !important;
+      height: auto !important;
+    }
+
+    /* Page-break hints for multi-page PDFs */
+    @media print {
+      body { padding: 10mm 12mm !important; }
+      .day-block   { page-break-inside: avoid; }
+      .risk-card   { page-break-inside: avoid; }
+      .cost-section { page-break-inside: avoid; }
+      .place-card  { page-break-inside: avoid; }
+    }
+  `;
+
+  const popup = window.open('', '_blank', 'width=820,height=960,scrollbars=yes');
+  if (!popup) {
+    alert('Trình duyệt đang chặn cửa sổ popup. Vui lòng cho phép popup từ trang này và thử lại.');
+    return;
+  }
+
+  popup.document.write(`
+    <!DOCTYPE html>
+    <html lang="vi">
+    <head>
+      <meta charset="UTF-8" />
+      <title>${tripTitle}</title>
+      <link rel="preconnect" href="https://fonts.googleapis.com" />
+      <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+      <link href="${fontsHref}" rel="stylesheet" />
+      <link rel="stylesheet" href="${cssHref}" />
+      <style>${overrideCSS}</style>
+    </head>
+    <body>
+      <h1 class="print-title">✈️ ${tripTitle}</h1>
+      ${contentHTML}
+    </body>
+    </html>
+  `);
+  popup.document.close();
+
+  // Give CSS + fonts time to load before triggering print dialog
+  popup.onload = () => {
+    setTimeout(() => {
+      popup.focus();
+      popup.print();
+      popup.addEventListener('afterprint', () => popup.close());
+    }, 800);
+  };
 }

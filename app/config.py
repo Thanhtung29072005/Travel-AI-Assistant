@@ -43,6 +43,10 @@ class Settings(BaseSettings):
     temperature: float = 0.7
     max_tokens: int = 4096
 
+    # Durable LangGraph HITL checkpoints. Relative paths are resolved from the
+    # application working directory, e.g. /app/data inside Docker.
+    checkpoint_db_path: str = "data/langgraph_checkpoints.sqlite"
+
     # SerpApi
     serpapi_api_key: str = ""
 
