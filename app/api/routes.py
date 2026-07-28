@@ -333,7 +333,7 @@ async def chat_stream(request: ChatRequest):
                 for msg in (request.conversation_history or []):
                     updated_history.append({"role": msg.role.value, "content": msg.content})
                 updated_history.append({"role": "user", "content": request.message})
-                plan: TripPlan = final_state.get("trip_plan")
+                plan: TripPlan | None = final_state.get("trip_plan")
                 if awaiting_confirmation and plan:
                     response_text = _confirmation_message(plan)
 
@@ -342,7 +342,7 @@ async def chat_stream(request: ChatRequest):
                 
                 store.save_history(session_id, updated_history)
 
-                plan: TripPlan = final_state.get("trip_plan")
+                # plan already fetched above
                 if plan:
                     _update_decision_report(session_id, plan, final_state.get("travel_context", {}))
                     # Gửi plan và decision mới nhất về client
@@ -423,7 +423,6 @@ async def confirm_trip(session_id: str):
         await run_graph_call(agent.update_state, graph_config, {"trip_plan": state.trip_plan})
         final_state = await run_graph_call(agent.invoke, None, config=graph_config)
     else:
-        # Supports sessions created before durable checkpointing was enabled.
         fallback_state: TravelAgentState = {
             "messages": [HumanMessage(content="Execute the approved trip plan.")],
             "trip_plan": state.trip_plan,

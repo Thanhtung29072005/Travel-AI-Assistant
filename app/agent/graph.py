@@ -52,8 +52,6 @@ from app.agent.cost_agent import cost_agent_node
 from app.agent.itinerary_agent import itinerary_agent_node
 
 
-# Runtime requests use a SQLite-backed saver. Tests can still provide their
-# own in-memory saver when creating a graph directly.
 _checkpointer: SqliteSaver | None = None
 _agent_graph: CompiledStateGraph | None = None
 _agent_lock = threading.Lock()
@@ -143,23 +141,6 @@ def create_travel_agent(checkpointer=None) -> CompiledStateGraph:
         checkpointer=checkpointer or MemorySaver(),
         interrupt_before=["human_confirm"],
     )
-
-
-# Singleton instance (lazy initialization)
-_agent_graph = None
-
-
-def _legacy_get_agent() -> CompiledStateGraph:
-    """
-    Lấy agent graph instance (singleton pattern).
-
-    Returns:
-        Compiled LangGraph agent
-    """
-    global _agent_graph
-    if _agent_graph is None:
-        _agent_graph = create_travel_agent()
-    return _agent_graph
 
 
 def get_agent() -> CompiledStateGraph:
