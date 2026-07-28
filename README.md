@@ -47,13 +47,12 @@ flowchart TD
 
 | Layer | Technology |
 |---|---|
-| AI orchestration | LangGraph 0.2, LangChain |
+| AI orchestration | LangGraph , LangChain |
 | LLM | Google Gemini via `langchain-google-genai` |
-| Backend | Python, FastAPI, Uvicorn, Server-Sent Events |
-| Data validation | Pydantic and Pydantic Settings |
+| Backend | Python, FastAPI |
 | Persistence | SQLite checkpoints and Microsoft SQL Server session storage |
 | Travel providers | SerpApi, OpenWeatherMap, Tavily |
-| Frontend | Vanilla HTML, CSS, and JavaScript |
+| Frontend | HTML, CSS, and JavaScript |
 | Deployment | Docker and Docker Compose |
 | Testing | Python `unittest` |
 
