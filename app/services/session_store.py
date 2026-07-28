@@ -6,8 +6,11 @@ from __future__ import annotations
 
 import json
 import logging
+import sqlite3
 import threading
 import dataclasses
+from contextlib import contextmanager
+from pathlib import Path
 from typing import Optional, Any
 
 from app.models.trip_plan import TripPlan
@@ -75,7 +78,7 @@ def deserialize_decision_report(data_dict: dict) -> DecisionReport:
     )
 
 
-class SessionStore:
+class SQLServerSessionStore:
     """SQL Server Session Store (Singleton)"""
     def __init__(self):
         self._lock = threading.Lock()
@@ -308,12 +311,132 @@ class SessionStore:
         conn.close()
 
 
-# Singleton instance
+class SQLiteSessionStore:
+    """SQLite-backed session storage for single-instance demo deployments."""
+
+    def __init__(self, db_path: str | Path | None = None):
+        self._db_path = Path(db_path or settings.session_sqlite_path)
+        self._lock = threading.Lock()
+        self._initialized = False
+
+    def _get_connection(self) -> sqlite3.Connection:
+        self._db_path.parent.mkdir(parents=True, exist_ok=True)
+        return sqlite3.connect(self._db_path)
+
+    @contextmanager
+    def _connection(self):
+        connection = self._get_connection()
+        try:
+            yield connection
+            connection.commit()
+        except Exception:
+            connection.rollback()
+            raise
+        finally:
+            connection.close()
+
+    def _initialize_db(self) -> None:
+        if self._initialized:
+            return
+
+        with self._lock:
+            if self._initialized:
+                return
+            with self._connection() as conn:
+                conn.execute(
+                    """
+                    CREATE TABLE IF NOT EXISTS sessions (
+                        session_id TEXT PRIMARY KEY,
+                        trip_plan_json TEXT,
+                        decision_json TEXT,
+                        history_json TEXT,
+                        itinerary_text TEXT,
+                        created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+                        updated_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
+                    )
+                    """
+                )
+            self._initialized = True
+
+    def get_or_create(self, session_id: str) -> SessionState:
+        self._initialize_db()
+        state = SessionState(session_id)
+        with self._connection() as conn:
+            row = conn.execute(
+                """
+                SELECT trip_plan_json, decision_json, history_json, itinerary_text
+                FROM sessions WHERE session_id = ?
+                """,
+                (session_id,),
+            ).fetchone()
+            if row is None:
+                conn.execute("INSERT INTO sessions (session_id) VALUES (?)", (session_id,))
+                return state
+
+        plan_json, decision_json, history_json, itinerary_text = row
+        if plan_json:
+            state.trip_plan = TripPlan.model_validate_json(plan_json)
+        if decision_json:
+            state.decision = deserialize_decision_report(json.loads(decision_json))
+        if history_json:
+            try:
+                state.conversation_history = json.loads(history_json)
+            except (TypeError, ValueError):
+                state.conversation_history = []
+        if itinerary_text:
+            state.itinerary = itinerary_text
+        return state
+
+    def _upsert(self, session_id: str, column: str, value: str) -> None:
+        self._initialize_db()
+        if column not in {"trip_plan_json", "decision_json", "history_json", "itinerary_text"}:
+            raise ValueError(f"Unsupported session field: {column}")
+        with self._connection() as conn:
+            conn.execute(
+                f"""
+                INSERT INTO sessions (session_id, {column}) VALUES (?, ?)
+                ON CONFLICT(session_id) DO UPDATE SET
+                    {column} = excluded.{column},
+                    updated_at = CURRENT_TIMESTAMP
+                """,
+                (session_id, value),
+            )
+
+    def save_trip_plan(self, session_id: str, plan: TripPlan) -> None:
+        self._upsert(session_id, "trip_plan_json", plan.model_dump_json())
+
+    def save_decision(self, session_id: str, decision: DecisionReport) -> None:
+        self._upsert(
+            session_id,
+            "decision_json",
+            json.dumps(dataclasses.asdict(decision), ensure_ascii=False),
+        )
+
+    def save_history(self, session_id: str, history: list[dict]) -> None:
+        self._upsert(session_id, "history_json", json.dumps(history, ensure_ascii=False))
+
+    def save_itinerary(self, session_id: str, itinerary: str) -> None:
+        self._upsert(session_id, "itinerary_text", itinerary)
+
+    def clear(self, session_id: str) -> None:
+        self._initialize_db()
+        with self._connection() as conn:
+            conn.execute("DELETE FROM sessions WHERE session_id = ?", (session_id,))
+
+
 _session_store = None
 
 
-def get_session_store() -> SessionStore:
+def get_session_store():
     global _session_store
     if _session_store is None:
-        _session_store = SessionStore()
+        backend = settings.session_store_backend.strip().lower()
+        if backend == "sqlite":
+            _session_store = SQLiteSessionStore()
+        elif backend == "sqlserver":
+            _session_store = SQLServerSessionStore()
+        else:
+            raise ValueError(
+                "SESSION_STORE_BACKEND must be either 'sqlserver' or 'sqlite'."
+            )
     return _session_store

@@ -8,7 +8,7 @@ A Vietnamese travel-planning assistant built with **FastAPI, LangGraph, and Goog
 - **Durable LangGraph checkpoints**: SQLite lets a paused approval flow resume after a server restart.
 - A supervisor coordinates the weather, cost/flight/hotel, and itinerary agents.
 - Transparent flight and hotel data: SerpApi is used when configured; otherwise the app falls back to clearly labelled `fixture` data.
-- Per-session plans, budget/risk reports, itineraries, and conversation history are stored in SQL Server.
+- Per-session plans, budget/risk reports, itineraries, and conversation history are stored in SQL Server or SQLite demo mode.
 - Built-in web UI with SSE updates for processing status and chat results.
 
 ## Workflow
@@ -41,7 +41,7 @@ flowchart TD
 | Weather | OpenWeatherMap | Unavailable notice | A key is required for live lookup. |
 | Destination information | Tavily | No search call | Optional. |
 | HITL checkpoints | SQLite | — | Default: `data/langgraph_checkpoints.sqlite`. |
-| Session and UI data | SQL Server | — | Stores TripPlan, DecisionReport, itinerary, and chat history. |
+| Session and UI data | SQL Server or SQLite | — | Stores TripPlan, DecisionReport, itinerary, and chat history. |
 
 ## Tech stack
 
@@ -51,7 +51,7 @@ flowchart TD
 | LLM | Google Gemini via `langchain-google-genai` |
 | Backend | Python, FastAPI, Uvicorn, Server-Sent Events |
 | Data validation | Pydantic and Pydantic Settings |
-| Persistence | SQLite checkpoints and Microsoft SQL Server session storage |
+| Persistence | SQLite checkpoints, plus SQL Server or SQLite session storage |
 | Travel providers | SerpApi, OpenWeatherMap, Tavily |
 | Frontend | Vanilla HTML, CSS, and JavaScript |
 | Deployment | Docker and Docker Compose |
@@ -64,7 +64,7 @@ app/
 ├── agent/                 # LangGraph workflow, planner, supervisor, and agents
 ├── api/routes.py          # REST API and SSE streaming
 ├── providers/             # SerpApi gateway, normalizers, and fixture fallback
-├── services/              # SQL Server store, calculator, weather, and search
+├── services/              # Session stores, calculator, weather, and search
 ├── models/                # Pydantic schemas and TripPlan
 └── static/                # HTML/CSS/JavaScript web interface
 tests/                     # HITL, provider, and decision-report tests
@@ -73,7 +73,7 @@ data/                      # SQLite checkpoints; runtime files are not committed
 
 ## Local setup
 
-Requirements: Python 3.11+ and an accessible SQL Server instance. The Docker image uses Python 3.11.
+Requirements: Python 3.11+. The Docker image uses Python 3.11. SQL Server is required only when `SESSION_STORE_BACKEND=sqlserver`.
 
 ```powershell
 git clone <repository-url>
@@ -90,11 +90,18 @@ Set the required values in `.env`:
 
 ```env
 GOOGLE_API_KEY="..."                 # Required
+
+# Local SQL Server mode (default)
+SESSION_STORE_BACKEND="sqlserver"
 SQL_SERVER_HOST="localhost"
 SQL_SERVER_PORT=1433
 SQL_SERVER_DATABASE="Travel_AI_ASSISTANT"
 SQL_SERVER_USER="sa"
 SQL_SERVER_PASSWORD="..."
+
+# Render/demo mode: no SQL Server required
+# SESSION_STORE_BACKEND="sqlite"
+# SESSION_SQLITE_PATH="data/travel_sessions.sqlite"
 
 # Optional. Without SerpApi, clearly labelled fixtures are used.
 SERPAPI_API_KEY="..."
@@ -113,7 +120,7 @@ Open [http://localhost:8000](http://localhost:8000). API documentation is availa
 
 ## Docker
 
-Ensure `.env` points to a SQL Server instance accessible from the container. If SQL Server runs on a Windows or macOS host, `host.docker.internal` is commonly used for `SQL_SERVER_HOST`.
+For local Docker with SQL Server, point `.env` to a database accessible from the container. If SQL Server runs on a Windows or macOS host, `host.docker.internal` is commonly used for `SQL_SERVER_HOST`.
 
 ```powershell
 docker compose up -d --build
@@ -121,6 +128,18 @@ docker compose logs -f travel-assistant
 ```
 
 Docker mounts `./data` at `/app/data`, preserving SQLite checkpoints when the container is recreated.
+
+### Render demo deployment
+
+Set these environment variables in the Render dashboard to run without SQL Server:
+
+```env
+SESSION_STORE_BACKEND="sqlite"
+SESSION_SQLITE_PATH="data/travel_sessions.sqlite"
+CHECKPOINT_DB_PATH="data/langgraph_checkpoints.sqlite"
+```
+
+Render Free uses ephemeral storage, so SQLite sessions and checkpoints are reset after a restart, redeploy, or spin-down. Use a managed database and persistent storage for production.
 
 ## API
 
@@ -157,5 +176,5 @@ The tests do not require real API keys: live provider responses are mocked and f
 
 - The app provides search and recommendations only; it does not take payments or make bookings.
 - Flight and hotel prices can change. Fixture results are for demonstration only and are explicitly labelled.
-- SQL Server is required for session data. SQLite persists LangGraph checkpoints only and does not replace the session store.
+- SQLite session mode is designed for a single-instance demo. On Render Free, its local data is lost after a restart, redeploy, or spin-down.
 - CORS currently allows every origin for development convenience; restrict allowed domains before a production deployment.

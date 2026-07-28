@@ -45,6 +45,9 @@ class Settings(BaseSettings):
 
     checkpoint_db_path: str = "data/langgraph_checkpoints.sqlite"
 
+    session_store_backend: str = "sqlserver"
+    session_sqlite_path: str = "data/travel_sessions.sqlite"
+
     # SerpApi
     serpapi_api_key: str = ""
 
