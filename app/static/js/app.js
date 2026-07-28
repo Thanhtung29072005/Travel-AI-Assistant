@@ -171,6 +171,8 @@ function renderHistoryList() {
     return;
   }
   chatHistory.forEach((item) => {
+    const row = document.createElement('div');
+    row.className = `history-row${item.id === activeHistoryId ? ' active' : ''}`;
     const btn = document.createElement('button');
     btn.className = `history-item${item.id === activeHistoryId ? ' active' : ''}`;
     btn.dataset.id = item.id;
@@ -196,8 +198,51 @@ function renderHistoryList() {
       renderHistoryList();
       loadSession(item.sessionId);
     });
-    historyList.appendChild(btn);
+
+    const deleteBtn = document.createElement('button');
+    deleteBtn.className = 'history-delete-btn';
+    deleteBtn.type = 'button';
+    deleteBtn.title = 'Xóa hội thoại';
+    deleteBtn.setAttribute('aria-label', `Xóa hội thoại ${item.title}`);
+    deleteBtn.innerHTML = `
+      <svg viewBox="0 0 24 24" aria-hidden="true">
+        <path d="M4 7h16M10 11v6M14 11v6M9 7l1-2h4l1 2M6 7l1 13h10l1-13" />
+      </svg>
+    `;
+    deleteBtn.addEventListener('click', (event) => {
+      event.stopPropagation();
+      void deleteConversation(item);
+    });
+
+    row.append(btn, deleteBtn);
+    historyList.appendChild(row);
   });
+}
+
+async function deleteConversation(item) {
+  if (isLoading) return;
+  if (!window.confirm(`Xóa hội thoại "${item.title}"? Thao tác này không thể hoàn tác.`)) return;
+
+  if (item.sessionId && item.sessionId !== 'pending') {
+    try {
+      const response = await fetch(`${API_BASE}/trips/${item.sessionId}`, { method: 'DELETE' });
+      if (!response.ok) throw new Error('Không thể xóa hội thoại trên server.');
+    } catch (error) {
+      console.error('Lỗi khi xóa hội thoại:', error);
+      alert('Không thể xóa hội thoại. Vui lòng thử lại.');
+      return;
+    }
+  }
+
+  const wasActive = item.id === activeHistoryId;
+  chatHistory = chatHistory.filter((entry) => entry.id !== item.id);
+  saveHistoryToStorage();
+
+  if (wasActive) {
+    startNewChat();
+  } else {
+    renderHistoryList();
+  }
 }
 
 function addToHistory(title, sid) {

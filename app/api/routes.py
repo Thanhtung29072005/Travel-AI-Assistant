@@ -390,6 +390,20 @@ async def get_trip(session_id: str):
     }
 
 
+@router.delete(
+    "/trips/{session_id}",
+    tags=["Trips"],
+    summary="Delete a trip session and its HITL checkpoint",
+)
+async def delete_trip(session_id: str):
+    store = get_session_store()
+    agent = get_agent()
+
+    await run_graph_call(agent.checkpointer.delete_thread, session_id)
+    store.clear(session_id)
+    return {"status": "deleted", "session_id": session_id}
+
+
 @router.post(
     "/trips/{session_id}/confirm",
     tags=["Trips"],

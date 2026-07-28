@@ -167,6 +167,12 @@ body {
 .history-list::-webkit-scrollbar { width: 3px; }
 .history-list::-webkit-scrollbar-thumb { background: var(--border); border-radius: 99px; }
 
+.history-row {
+  display: flex;
+  align-items: center;
+  gap: 2px;
+}
+
 .history-item {
   display: flex;
   align-items: center;
@@ -175,7 +181,8 @@ body {
   border-radius: var(--radius-md);
   cursor: pointer;
   transition: background var(--dur-fast);
-  width: 100%;
+  flex: 1;
+  min-width: 0;
   text-align: left;
   border: none;
   background: none;
@@ -187,6 +194,42 @@ body {
 .history-item.active {
   background: var(--accent-light);
   color: var(--accent);
+}
+
+.history-delete-btn {
+  width: 28px;
+  height: 28px;
+  flex-shrink: 0;
+  display: grid;
+  place-items: center;
+  border: none;
+  border-radius: var(--radius-sm);
+  background: transparent;
+  color: var(--text-muted);
+  cursor: pointer;
+  opacity: 0;
+  transition: opacity var(--dur-fast), background var(--dur-fast), color var(--dur-fast);
+}
+
+.history-delete-btn svg {
+  width: 15px;
+  height: 15px;
+  fill: none;
+  stroke: currentColor;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+  stroke-width: 1.8;
+}
+
+.history-row:hover .history-delete-btn,
+.history-row.active .history-delete-btn,
+.history-delete-btn:focus-visible {
+  opacity: 1;
+}
+
+.history-delete-btn:hover {
+  background: #fee2e2;
+  color: #dc2626;
 }
 
 .history-item-icon {

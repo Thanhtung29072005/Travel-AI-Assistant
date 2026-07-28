@@ -43,6 +43,20 @@ flowchart TD
 | HITL checkpoints | SQLite | — | Default: `data/langgraph_checkpoints.sqlite`. |
 | Session and UI data | SQL Server | — | Stores TripPlan, DecisionReport, itinerary, and chat history. |
 
+## Tech stack
+
+| Layer | Technology |
+|---|---|
+| AI orchestration | LangGraph 0.2, LangChain |
+| LLM | Google Gemini via `langchain-google-genai` |
+| Backend | Python, FastAPI, Uvicorn, Server-Sent Events |
+| Data validation | Pydantic and Pydantic Settings |
+| Persistence | SQLite checkpoints and Microsoft SQL Server session storage |
+| Travel providers | SerpApi, OpenWeatherMap, Tavily |
+| Frontend | Vanilla HTML, CSS, and JavaScript |
+| Deployment | Docker and Docker Compose |
+| Testing | Python `unittest` |
+
 ## Project structure
 
 ```text
@@ -116,6 +130,7 @@ Docker mounts `./data` at `/app/data`, preserving SQLite checkpoints when the co
 | `POST` | `/api/chat` | Synchronous chat. |
 | `POST` | `/api/chat/stream` | Chat over Server-Sent Events. |
 | `GET` | `/api/trips/{session_id}` | Get the plan, budget/risk report, itinerary, and history. |
+| `DELETE` | `/api/trips/{session_id}` | Delete the session and its HITL checkpoint. |
 | `POST` | `/api/trips/{session_id}/confirm` | Confirm a plan and resume the HITL workflow. |
 | `PATCH` | `/api/trips/{session_id}/plan` | Edit a TripPlan, return it to draft, and recalculate the estimate. |
 
@@ -144,7 +159,3 @@ The tests do not require real API keys: live provider responses are mocked and f
 - Flight and hotel prices can change. Fixture results are for demonstration only and are explicitly labelled.
 - SQL Server is required for session data. SQLite persists LangGraph checkpoints only and does not replace the session store.
 - CORS currently allows every origin for development convenience; restrict allowed domains before a production deployment.
-
-## Reference
-
-The document structure was inspired by [Jmhzbmcn2/Travel-AI-Assistant](https://github.com/Jmhzbmcn2/Travel-AI-Assistant). The architecture and instructions in this README describe this codebase only.
